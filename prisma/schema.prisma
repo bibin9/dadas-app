@@ -1,0 +1,105 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+}
+
+model Member {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String   @default("")
+  active    Boolean  @default(true)
+  isGuest   Boolean  @default(false) // guest players for specific matches
+  createdAt DateTime @default(now())
+
+  eventDues      EventDue[]
+  purchaseSplits PurchaseSplit[]
+  payments       Payment[]
+}
+
+model Event {
+  id         String   @id @default(cuid())
+  name       String
+  type       String   @default("event") // "match" or "event"
+  date       DateTime
+  perHeadFee Float
+  totalCost  Float    @default(0) // actual cost of the event (e.g. ground rent)
+  notes      String   @default("")
+  createdAt  DateTime @default(now())
+
+  dues     EventDue[]
+  payments Payment[]
+}
+
+model EventDue {
+  id       String  @id @default(cuid())
+  eventId  String
+  memberId String
+  amount   Float
+  paid     Boolean @default(false)
+
+  event  Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, memberId])
+}
+
+model Purchase {
+  id          String   @id @default(cuid())
+  description String
+  totalAmount Float
+  date        DateTime
+  notes       String   @default("")
+  createdAt   DateTime @default(now())
+
+  splits PurchaseSplit[]
+}
+
+model PurchaseSplit {
+  id         String  @id @default(cuid())
+  purchaseId String
+  memberId   String
+  amount     Float
+  paid       Boolean @default(false)
+
+  purchase Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  member   Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([purchaseId, memberId])
+}
+
+model Payment {
+  id        String   @id @default(cuid())
+  memberId  String
+  amount    Float
+  method    String   @default("cash") // cash, bank_transfer, company_contribution
+  reference String   @default("") // e.g. transaction ref
+  notes     String   @default("")
+  date      DateTime
+  eventId   String?  // optional link to an event
+  createdAt DateTime @default(now())
+
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  event  Event? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+}
+
+model Settings {
+  id              String @id @default("main")
+  bankName        String @default("")
+  accountName     String @default("")
+  iban            String @default("")
+  accountNumber   String @default("")
+  swiftCode       String @default("")
+  defaultMatchFee Float  @default(20)
+  groupName       String @default("Company")
+}

@@ -1,0 +1,20 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/db";
+
+export async function GET() {
+  let settings = await prisma.settings.findUnique({ where: { id: "main" } });
+  if (!settings) {
+    settings = await prisma.settings.create({ data: { id: "main" } });
+  }
+  return NextResponse.json(settings);
+}
+
+export async function PUT(req: NextRequest) {
+  const { bankName, accountName, iban, accountNumber, swiftCode, defaultMatchFee, groupName } = await req.json();
+  const settings = await prisma.settings.upsert({
+    where: { id: "main" },
+    update: { bankName, accountName, iban, accountNumber, swiftCode, defaultMatchFee, groupName },
+    create: { id: "main", bankName, accountName, iban, accountNumber, swiftCode, defaultMatchFee, groupName },
+  });
+  return NextResponse.json(settings);
+}
