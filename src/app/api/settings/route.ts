@@ -10,11 +10,11 @@ export async function GET() {
 }
 
 export async function PUT(req: NextRequest) {
-  const { bankName, accountName, iban, accountNumber, swiftCode, defaultMatchFee, groupName } = await req.json();
+  const { bankName, accountName, iban, accountNumber, swiftCode, defaultMatchFee, groupName, autoDeleteDays } = await req.json();
   const settings = await prisma.settings.upsert({
     where: { id: "main" },
-    update: { bankName, accountName, iban, accountNumber, swiftCode, defaultMatchFee, groupName },
-    create: { id: "main", bankName, accountName, iban, accountNumber, swiftCode, defaultMatchFee, groupName },
+    update: { bankName, accountName, iban, accountNumber, swiftCode, defaultMatchFee, groupName, autoDeleteDays: autoDeleteDays ?? 0 },
+    create: { id: "main", bankName, accountName, iban, accountNumber, swiftCode, defaultMatchFee, groupName, autoDeleteDays: autoDeleteDays ?? 0 },
   });
   return NextResponse.json(settings);
 }

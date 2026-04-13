@@ -1,0 +1,356 @@
+"use client";
+
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { formatAED, formatDate } from "@/lib/format";
+
+interface IncomeItem { description: string; amount: number; category: string }
+interface ExpenseItem { description: string; amount: number; category: string }
+
+interface EventReport {
+  id: string; name: string; type: string; date: string; perHeadFee: number; totalCost: number;
+  totalDue: number; totalPaid: number; outstanding: number;
+  totalIncome: number; incomes: IncomeItem[];
+  totalExpenses: number; expenses: ExpenseItem[];
+  totalRevenue: number; totalCosts: number; netPL: number;
+  playerCount: number; paidCount: number; unpaidCount: number;
+  paidMembers: { name: string; amount: number; isGuest: boolean; method?: string }[];
+  unpaidMembers: { name: string; amount: number; isGuest: boolean }[];
+}
+interface OutstandingMember {
+  id: string; name: string; phone: string; totalDue: number; totalPaid: number; balance: number;
+}
+
+export default function ReportsPage() {
+  return <Suspense fallback={<div className="text-gray-700 font-medium p-4">Loading...</div>}><ReportsContent /></Suspense>;
+}
+
+function ReportsContent() {
+  const searchParams = useSearchParams();
+  const [eventReports, setEventReports] = useState<EventReport[]>([]);
+  const [outstandingReport, setOutstandingReport] = useState<OutstandingMember[]>([]);
+  const [groupName, setGroupName] = useState("Company");
+  const initialTab = searchParams.get("tab") === "outstanding" ? "outstanding" : "events";
+  const [tab, setTab] = useState<"events" | "outstanding">(initialTab);
+  const [expandedEvent, setExpandedEvent] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/reports").then((r) => r.json()).then((data) => {
+      setEventReports(data.eventReports);
+      setOutstandingReport(data.outstandingReport);
+      setGroupName(data.groupName);
+    });
+  }, []);
+
+  async function shareText(text: string) {
+    if (navigator.share) {
+      try { await navigator.share({ text }); return; } catch {}
+    }
+    try { await navigator.clipboard.writeText(text); alert("Copied to clipboard!"); } catch { window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank"); }
+  }
+
+  const incomeCatLabel = (c: string) => c === "sponsorship" ? "Sponsorship" : c === "donation" ? "Donation" : c === "prize" ? "Prize Money" : "Other";
+  const expenseCatLabel = (c: string) => ({ venue: "Venue", equipment: "Equipment", referee: "Referee", transport: "Transport", food: "Food & Drinks", trophy: "Trophy/Medals", medical: "Medical" }[c] || "Other");
+
+  // WhatsApp share for single event with P&L
+  function shareEventWhatsApp(ev: EventReport) {
+    const methodLabel = (m: string) => m === "bank_transfer" ? "Bank" : m === "company_contribution" ? "Company" : "Cash";
+    let msg = `*${ev.name}*\n`;
+    msg += `Date: ${formatDate(ev.date)}\n`;
+    msg += `Fee: ${formatAED(ev.perHeadFee)}/head | Players: ${ev.playerCount}\n`;
+    if (ev.totalCost > 0) msg += `Ground Cost: ${formatAED(ev.totalCost)}\n`;
+    msg += `Total Due: ${formatAED(ev.totalDue)} | Collected: ${formatAED(ev.totalPaid)} | Outstanding: ${formatAED(ev.outstanding)}\n`;
+
+    if (ev.totalIncome > 0 || ev.totalExpenses > 0) {
+      msg += `\n📊 *P&L Summary:*\n`;
+      msg += `  Contributions: ${formatAED(ev.totalPaid)}\n`;
+      if (ev.totalIncome > 0) msg += `  Income: ${formatAED(ev.totalIncome)}\n`;
+      if (ev.totalExpenses > 0) msg += `  Expenses: ${formatAED(ev.totalExpenses)}\n`;
+      if (ev.totalCost > 0) msg += `  Event Cost: ${formatAED(ev.totalCost)}\n`;
+      msg += `  *Net: ${ev.netPL >= 0 ? "+" : ""}${formatAED(ev.netPL)}*\n`;
+    }
+
+    msg += `\n`;
+    if (ev.paidMembers.length > 0) {
+      msg += `✅ *Paid (${ev.paidCount}):*\n`;
+      ev.paidMembers.forEach((m) => { msg += `  ${m.name} - ${formatAED(m.amount)} (${methodLabel(m.method || "cash")})\n`; });
+      msg += `\n`;
+    }
+    if (ev.unpaidMembers.length > 0) {
+      msg += `❌ *Unpaid (${ev.unpaidCount}):*\n`;
+      ev.unpaidMembers.forEach((m) => { msg += `  ${m.name} - ${formatAED(m.amount)}\n`; });
+      msg += `\n_Please clear your dues at the earliest._`;
+    }
+    shareText(msg);
+  }
+
+  // WhatsApp share for outstanding balances
+  function shareOutstandingWhatsApp() {
+    const totalOutstanding = outstandingReport.reduce((s, m) => s + m.balance, 0);
+    let msg = `*Outstanding Balances Report*\n`;
+    msg += `Total Outstanding: ${formatAED(totalOutstanding)}\n`;
+    msg += `Members with dues: ${outstandingReport.length}\n\n`;
+    outstandingReport.forEach((m, i) => {
+      msg += `${i + 1}. ${m.name} - ${formatAED(m.balance)}\n`;
+    });
+    msg += `\n_Please clear your dues at the earliest._`;
+    shareText(msg);
+  }
+
+  const totalOutstanding = outstandingReport.reduce((s, m) => s + m.balance, 0);
+
+  // Events with financial activity (income or expenses)
+  const eventsWithPL = eventReports.filter((ev) => ev.totalIncome > 0 || ev.totalExpenses > 0 || ev.totalCost > 0);
+
+  return (
+    <div>
+      <h1 className="text-2xl font-bold text-gray-900 mb-6">Reports</h1>
+
+      {/* Tab Switcher */}
+      <div className="flex gap-1 bg-gray-100 rounded-lg p-1 mb-6">
+        <button onClick={() => setTab("events")}
+          className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition ${tab === "events" ? "bg-white text-gray-900 shadow-sm" : "text-gray-600"}`}>
+          Event Collection & P&L
+        </button>
+        <button onClick={() => setTab("outstanding")}
+          className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition ${tab === "outstanding" ? "bg-white text-gray-900 shadow-sm" : "text-gray-600"}`}>
+          Outstanding Balances
+        </button>
+      </div>
+
+      {/* ========== EVENT COLLECTION & P&L REPORT ========== */}
+      {tab === "events" && (
+        <div className="space-y-4">
+          {eventReports.map((ev) => {
+            const isExpanded = expandedEvent === ev.id;
+            const hasPL = ev.totalIncome > 0 || ev.totalExpenses > 0 || ev.totalCost > 0;
+            return (
+              <div key={ev.id} className={`bg-white rounded-xl shadow-sm border ${ev.type === "match" ? "border-l-4 border-l-blue-500" : ""}`}>
+                <div className="px-4 md:px-6 py-3 md:py-4 cursor-pointer" onClick={() => setExpandedEvent(isExpanded ? null : ev.id)}>
+                  <div className="flex items-center justify-between">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-bold text-gray-900">{ev.name}</h3>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${ev.type === "match" ? "bg-blue-100 text-blue-800" : "bg-emerald-100 text-emerald-800"}`}>{ev.type === "match" ? "Match" : "Event"}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${ev.unpaidCount === 0 ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>{ev.paidCount}/{ev.playerCount} paid</span>
+                        {hasPL && (
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${ev.netPL >= 0 ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
+                            P&L: {ev.netPL >= 0 ? "+" : ""}{formatAED(ev.netPL)}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-800 mt-1">{formatDate(ev.date)} — {formatAED(ev.perHeadFee)}/head — {ev.playerCount} members</p>
+                    </div>
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      <div className="text-right hidden sm:block">
+                        <div className="text-sm font-bold text-gray-900">{formatAED(ev.totalPaid)}</div>
+                        <div className="text-xs text-gray-600">of {formatAED(ev.totalDue)}</div>
+                      </div>
+                      <span className="text-gray-400 text-sm">{isExpanded ? "▲" : "▼"}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {isExpanded && (
+                  <div className="px-4 md:px-6 py-4 border-t space-y-4">
+                    {/* Collection summary */}
+                    <div className="grid grid-cols-3 gap-3 text-sm">
+                      <div className="bg-gray-50 rounded-lg p-3"><span className="text-gray-600">Total Due</span><div className="font-bold text-gray-900">{formatAED(ev.totalDue)}</div></div>
+                      <div className="bg-emerald-50 rounded-lg p-3"><span className="text-gray-600">Collected</span><div className="font-bold text-emerald-700">{formatAED(ev.totalPaid)}</div></div>
+                      <div className="bg-red-50 rounded-lg p-3"><span className="text-gray-600">Outstanding</span><div className="font-bold text-red-600">{formatAED(ev.outstanding)}</div></div>
+                    </div>
+
+                    {/* P&L Section */}
+                    {hasPL && (
+                      <div className="bg-gray-50 rounded-xl p-4 space-y-3">
+                        <h4 className="font-bold text-gray-900 text-sm">Profit & Loss</h4>
+
+                        {/* Revenue */}
+                        <div>
+                          <div className="text-xs font-semibold text-emerald-700 mb-1 uppercase tracking-wide">Revenue</div>
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-sm">
+                              <span className="text-gray-700">Member Contributions</span>
+                              <span className="font-semibold text-emerald-700">{formatAED(ev.totalPaid)}</span>
+                            </div>
+                            {ev.incomes.map((inc, i) => (
+                              <div key={i} className="flex justify-between text-sm">
+                                <span className="text-gray-700">
+                                  {inc.description}
+                                  <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 font-medium">{incomeCatLabel(inc.category)}</span>
+                                </span>
+                                <span className="font-semibold text-emerald-700">{formatAED(inc.amount)}</span>
+                              </div>
+                            ))}
+                            <div className="flex justify-between text-sm font-bold border-t border-emerald-200 pt-1 mt-1">
+                              <span className="text-emerald-800">Total Revenue</span>
+                              <span className="text-emerald-800">{formatAED(ev.totalRevenue)}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Costs */}
+                        <div>
+                          <div className="text-xs font-semibold text-red-700 mb-1 uppercase tracking-wide">Costs</div>
+                          <div className="space-y-1">
+                            {ev.totalCost > 0 && (
+                              <div className="flex justify-between text-sm">
+                                <span className="text-gray-700">Event Cost (Ground/Venue)</span>
+                                <span className="font-semibold text-red-600">{formatAED(ev.totalCost)}</span>
+                              </div>
+                            )}
+                            {ev.expenses.map((exp, i) => (
+                              <div key={i} className="flex justify-between text-sm">
+                                <span className="text-gray-700">
+                                  {exp.description}
+                                  <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-medium">{expenseCatLabel(exp.category)}</span>
+                                </span>
+                                <span className="font-semibold text-red-600">{formatAED(exp.amount)}</span>
+                              </div>
+                            ))}
+                            <div className="flex justify-between text-sm font-bold border-t border-red-200 pt-1 mt-1">
+                              <span className="text-red-800">Total Costs</span>
+                              <span className="text-red-800">{formatAED(ev.totalCosts)}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Net P&L */}
+                        <div className={`flex justify-between items-center rounded-lg p-3 ${ev.netPL >= 0 ? "bg-emerald-100" : "bg-red-100"}`}>
+                          <span className={`font-bold text-sm ${ev.netPL >= 0 ? "text-emerald-800" : "text-red-800"}`}>Net Profit/Loss</span>
+                          <span className={`font-bold text-lg ${ev.netPL >= 0 ? "text-emerald-800" : "text-red-800"}`}>
+                            {ev.netPL >= 0 ? "+" : ""}{formatAED(ev.netPL)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Paid Members */}
+                    {ev.paidMembers.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-bold text-emerald-700 mb-1">Paid ({ev.paidCount})</h4>
+                        <div className="space-y-1">{ev.paidMembers.map((m, i) => (
+                          <div key={i} className="flex justify-between items-center bg-emerald-50 rounded-lg px-3 py-1.5 text-sm">
+                            <span className="text-gray-900 font-medium">{m.name}{m.isGuest ? " (guest)" : ""}</span>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${m.method === "bank_transfer" ? "bg-blue-100 text-blue-700" : m.method === "company_contribution" ? "bg-purple-100 text-purple-700" : "bg-amber-100 text-amber-700"}`}>
+                                {m.method === "bank_transfer" ? "Bank" : m.method === "company_contribution" ? "Company" : "Cash"}
+                              </span>
+                              <span className="font-semibold text-emerald-700">{formatAED(m.amount)}</span>
+                            </div>
+                          </div>
+                        ))}</div>
+                      </div>
+                    )}
+                    {ev.unpaidMembers.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-bold text-red-600 mb-1">Unpaid ({ev.unpaidCount})</h4>
+                        <div className="space-y-1">{ev.unpaidMembers.map((m, i) => (
+                          <div key={i} className="flex justify-between bg-red-50 rounded-lg px-3 py-1.5 text-sm">
+                            <span className="text-gray-900 font-medium">{m.name}{m.isGuest ? " (guest)" : ""}</span>
+                            <span className="font-semibold text-red-600">{formatAED(m.amount)}</span>
+                          </div>
+                        ))}</div>
+                      </div>
+                    )}
+
+                    <button onClick={() => shareEventWhatsApp(ev)} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 w-full sm:w-auto">
+                      Share via WhatsApp
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          {eventReports.length === 0 && <div className="text-center text-gray-600 py-12 font-medium">No events yet.</div>}
+        </div>
+      )}
+
+      {/* ========== OUTSTANDING BALANCES REPORT ========== */}
+      {tab === "outstanding" && (
+        <div>
+          {/* Summary */}
+          <div className="grid grid-cols-2 gap-3 mb-6">
+            <div className="bg-red-50 rounded-xl border border-red-200 p-4">
+              <div className="text-sm font-semibold text-red-700">Total Outstanding</div>
+              <div className="text-2xl font-bold text-red-700 mt-1">{formatAED(totalOutstanding)}</div>
+            </div>
+            <div className="bg-amber-50 rounded-xl border border-amber-200 p-4">
+              <div className="text-sm font-semibold text-amber-700">Members with Dues</div>
+              <div className="text-2xl font-bold text-amber-700 mt-1">{outstandingReport.length}</div>
+            </div>
+          </div>
+
+          {/* Share Button */}
+          {outstandingReport.length > 0 && (
+            <button onClick={shareOutstandingWhatsApp} className="bg-green-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-green-700 mb-4 w-full sm:w-auto">
+              Share Outstanding Report via WhatsApp
+            </button>
+          )}
+
+          {/* Members List */}
+          <div className="bg-white rounded-xl shadow-sm border">
+            {/* Mobile */}
+            <div className="md:hidden divide-y">
+              {outstandingReport.map((m, i) => (
+                <div key={m.id} className="px-4 py-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-sm text-gray-500 mr-2">{i + 1}.</span>
+                      <span className="font-semibold text-gray-900">{m.name}</span>
+                    </div>
+                    <span className="font-bold text-red-600">{formatAED(m.balance)}</span>
+                  </div>
+                  <div className="flex gap-4 mt-1 text-xs text-gray-700">
+                    <span>Due: {formatAED(m.totalDue)}</span>
+                    <span>Paid: {formatAED(m.totalPaid)}</span>
+                  </div>
+                </div>
+              ))}
+              {outstandingReport.length === 0 && (
+                <div className="px-4 py-8 text-center text-gray-600 font-medium">No outstanding balances. All settled!</div>
+              )}
+            </div>
+
+            {/* Desktop */}
+            <table className="w-full hidden md:table">
+              <thead>
+                <tr className="text-left text-sm text-gray-700 border-b bg-gray-50">
+                  <th className="px-6 py-3 font-semibold w-10">#</th>
+                  <th className="px-6 py-3 font-semibold">Member</th>
+                  <th className="px-6 py-3 font-semibold">Phone</th>
+                  <th className="px-6 py-3 font-semibold text-right">Total Due</th>
+                  <th className="px-6 py-3 font-semibold text-right">Paid</th>
+                  <th className="px-6 py-3 font-semibold text-right">Outstanding</th>
+                </tr>
+              </thead>
+              <tbody>
+                {outstandingReport.map((m, i) => (
+                  <tr key={m.id} className="border-b last:border-0 hover:bg-gray-50">
+                    <td className="px-6 py-3 text-sm text-gray-600">{i + 1}</td>
+                    <td className="px-6 py-3 font-semibold text-gray-900">{m.name}</td>
+                    <td className="px-6 py-3 text-sm text-gray-800">{m.phone || "-"}</td>
+                    <td className="px-6 py-3 text-right text-sm text-gray-800">{formatAED(m.totalDue)}</td>
+                    <td className="px-6 py-3 text-right text-sm text-emerald-700 font-medium">{formatAED(m.totalPaid)}</td>
+                    <td className="px-6 py-3 text-right text-sm font-bold text-red-600">{formatAED(m.balance)}</td>
+                  </tr>
+                ))}
+                {outstandingReport.length === 0 && (
+                  <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-600 font-medium">No outstanding balances. All settled!</td></tr>
+                )}
+              </tbody>
+              {outstandingReport.length > 0 && (
+                <tfoot>
+                  <tr className="bg-gray-50 border-t">
+                    <td colSpan={5} className="px-6 py-3 text-right font-bold text-gray-900">Total Outstanding</td>
+                    <td className="px-6 py-3 text-right font-bold text-red-600 text-lg">{formatAED(totalOutstanding)}</td>
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

@@ -1,8 +1,8 @@
 import { PrismaClient } from "@/generated/prisma/client";
 
-const globalForPrisma = globalThis as unknown as { prisma: InstanceType<typeof PrismaClient> };
+const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
 
-async function createPrismaClient() {
+async function createPrismaClient(): Promise<PrismaClient> {
   if (process.env.TURSO_DATABASE_URL) {
     const { PrismaLibSql } = await import("@prisma/adapter-libsql");
     return new PrismaClient({
@@ -21,11 +21,11 @@ async function createPrismaClient() {
   }
 }
 
-const prismaPromise = globalForPrisma.prisma
+const prismaPromise: Promise<PrismaClient> = globalForPrisma.prisma
   ? Promise.resolve(globalForPrisma.prisma)
   : createPrismaClient().then((client) => {
       if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = client;
       return client;
     });
 
-export const prisma = await prismaPromise;
+export const prisma: PrismaClient = await prismaPromise;

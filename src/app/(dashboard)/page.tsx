@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { formatAED } from "@/lib/format";
 
 interface MemberBalance {
@@ -25,136 +26,198 @@ interface DashboardData {
     groupFund: number;
     totalEventCosts: number;
     totalPurchaseCosts: number;
+    totalCompanyIncome: number;
+    totalEventExpenses: number;
     groupName: string;
   };
 }
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
+  const [balanceFilter, setBalanceFilter] = useState<"all" | "dues" | "settled" | "credits">("all");
+  const router = useRouter();
 
   useEffect(() => {
     fetch("/api/dashboard").then((r) => r.json()).then(setData);
   }, []);
 
-  if (!data) return <div className="text-gray-500">Loading...</div>;
+  if (!data) return <div className="text-gray-700 font-medium p-4">Loading...</div>;
 
   const { balances, totals } = data;
 
-  // Separate members into those who owe and those with credit
   const owingMembers = balances.filter((b) => b.balance > 0);
   const creditMembers = balances.filter((b) => b.balance < 0);
   const settledMembers = balances.filter((b) => b.balance === 0);
+
+  const filteredBalances = balanceFilter === "dues" ? owingMembers
+    : balanceFilter === "credits" ? creditMembers
+    : balanceFilter === "settled" ? settledMembers
+    : balances;
+
+  async function shareText(text: string) {
+    if (navigator.share) {
+      try { await navigator.share({ text }); return; } catch {}
+    }
+    try { await navigator.clipboard.writeText(text); alert("Copied to clipboard!"); } catch { window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank"); }
+  }
 
   return (
     <div>
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Dashboard</h1>
 
       {/* Summary Cards - Row 1 */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-        <Card label="Total Members" value={String(totals.memberCount)} color="blue" />
-        <Card label="Total Collected" value={formatAED(totals.totalPaid)} color="emerald" />
-        <Card label="Outstanding" value={formatAED(totals.totalOutstanding)} color="red" />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-3 md:mb-4">
+        <Card label="Total Members" value={String(totals.memberCount)} color="blue" onClick={() => router.push("/members")} />
+        <Card label="Total Collected" value={formatAED(totals.totalPaid)} color="emerald" onClick={() => router.push("/payments")} />
+        <Card label="Outstanding" value={formatAED(totals.totalOutstanding)} color="red" onClick={() => router.push("/reports?tab=outstanding")} />
         <Card
           label={`${totals.groupName} Fund`}
           value={formatAED(totals.groupFund)}
           color={totals.groupFund >= 0 ? "emerald" : "red"}
           subtitle={totals.groupFund >= 0 ? "Surplus" : "Deficit"}
+          onClick={() => router.push("/reports?tab=events")}
         />
       </div>
 
       {/* Summary Cards - Row 2 */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <Card label="Total Dues Charged" value={formatAED(totals.totalDue)} color="amber" />
-        <Card label="Advance Credits" value={formatAED(totals.totalCredit)} color="purple" subtitle={`${creditMembers.length} member${creditMembers.length !== 1 ? "s" : ""} with credit`} />
-        <Card label="Event & Purchase Costs" value={formatAED(totals.totalEventCosts + totals.totalPurchaseCosts)} color="gray" />
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 mb-6 md:mb-8">
+        <Card label="Total Dues" value={formatAED(totals.totalDue)} color="amber" onClick={() => router.push("/reports?tab=events")} />
+        <Card label="Advance Credits" value={formatAED(totals.totalCredit)} color="purple" subtitle={`${creditMembers.length} member${creditMembers.length !== 1 ? "s" : ""}`} onClick={() => setBalanceFilter("credits")} />
+        <Card label="Costs" value={formatAED(totals.totalEventCosts + totals.totalPurchaseCosts + totals.totalEventExpenses)} color="gray" onClick={() => router.push("/expenses")} />
       </div>
+
+      {/* Outstanding Members */}
+      {owingMembers.length > 0 && (
+        <div className="bg-white rounded-xl shadow-sm border border-red-200 mb-6 md:mb-8">
+          <div className="px-4 md:px-6 py-3 md:py-4 border-b border-red-100 bg-red-50 rounded-t-xl flex items-center justify-between">
+            <div className="cursor-pointer" onClick={() => router.push("/reports?tab=outstanding")}>
+              <h2 className="font-bold text-red-700">Outstanding Dues</h2>
+              <p className="text-sm text-red-600">{owingMembers.length} member{owingMembers.length !== 1 ? "s" : ""} owe {formatAED(totals.totalOutstanding)}</p>
+            </div>
+            <button onClick={() => {
+              let msg = `*Outstanding Dues Report*\n`;
+              msg += `Total: ${formatAED(totals.totalOutstanding)}\n\n`;
+              owingMembers.sort((a, b) => b.balance - a.balance).forEach((m, i) => { msg += `${i + 1}. ${m.name} - ${formatAED(m.balance)}\n`; });
+              msg += `\n_Please clear your dues at the earliest._`;
+              shareText(msg);
+            }} className="bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-green-700 flex-shrink-0">
+              Share
+            </button>
+          </div>
+          <div className="divide-y">
+            {owingMembers.sort((a, b) => b.balance - a.balance).map((m, i) => (
+              <div key={m.id} className="px-4 md:px-6 py-2.5 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500 w-5">{i + 1}.</span>
+                  <span className="font-semibold text-gray-900 text-sm">{m.name}</span>
+                </div>
+                <span className="font-bold text-red-600 text-sm">{formatAED(m.balance)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Balance Table */}
       <div className="bg-white rounded-xl shadow-sm border">
-        <div className="px-6 py-4 border-b">
-          <h2 className="font-semibold text-gray-900">Member Balances</h2>
-          <p className="text-sm text-gray-500">
-            Positive = owes money | Negative = advance credit
-          </p>
+        <div className="px-4 md:px-6 py-3 md:py-4 border-b">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <h2 className="font-semibold text-gray-900">All Member Balances</h2>
+              <p className="text-sm text-gray-700">Positive = owes money | Negative = advance credit</p>
+            </div>
+            <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+              {([["all", "All"], ["dues", "Dues"], ["settled", "Settled"], ["credits", "Credits"]] as const).map(([key, label]) => (
+                <button key={key} onClick={() => setBalanceFilter(key)}
+                  className={`px-3 py-1 rounded-md text-xs font-semibold transition ${balanceFilter === key ? "bg-white text-gray-900 shadow-sm" : "text-gray-600"}`}>{label}</button>
+              ))}
+            </div>
+          </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full">
+          {/* Mobile card view */}
+          <div className="md:hidden divide-y">
+            {filteredBalances.map((m) => (
+              <div key={m.id} className="px-4 py-3">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="font-semibold text-gray-900">{m.name}</div>
+                  {m.balance > 0 ? (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-semibold">Owes</span>
+                  ) : m.balance < 0 ? (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">Credit</span>
+                  ) : (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 font-semibold">Settled</span>
+                  )}
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-xs mt-2">
+                  <div><span className="text-gray-600">Due</span><div className="font-semibold text-gray-900">{formatAED(m.totalDue)}</div></div>
+                  <div><span className="text-gray-600">Paid</span><div className="font-semibold text-emerald-700">{formatAED(m.totalPaid)}</div></div>
+                  <div><span className="text-gray-600">Balance</span><div className={`font-bold ${m.balance > 0 ? "text-red-600" : m.balance < 0 ? "text-emerald-600" : "text-gray-500"}`}>
+                    {m.balance > 0 ? formatAED(m.balance) : m.balance < 0 ? `-${formatAED(Math.abs(m.balance))}` : formatAED(0)}
+                  </div></div>
+                </div>
+              </div>
+            ))}
+            {filteredBalances.length === 0 && (
+              <div className="px-4 py-8 text-center text-gray-600 font-medium">{balanceFilter === "all" ? "No members yet." : "No members in this category."}</div>
+            )}
+          </div>
+
+          {/* Desktop table view */}
+          <table className="w-full hidden md:table">
             <thead>
-              <tr className="text-left text-sm text-gray-500 border-b">
-                <th className="px-6 py-3 font-medium">Member</th>
-                <th className="px-6 py-3 font-medium text-right">Event Dues</th>
-                <th className="px-6 py-3 font-medium text-right">Purchase Splits</th>
-                <th className="px-6 py-3 font-medium text-right">Total Due</th>
-                <th className="px-6 py-3 font-medium text-right">Paid</th>
-                <th className="px-6 py-3 font-medium text-right">Balance</th>
-                <th className="px-6 py-3 font-medium text-center">Status</th>
+              <tr className="text-left text-sm text-gray-700 border-b">
+                <th className="px-6 py-3 font-semibold">Member</th>
+                <th className="px-6 py-3 font-semibold text-right">Event Dues</th>
+                <th className="px-6 py-3 font-semibold text-right">Purchase Splits</th>
+                <th className="px-6 py-3 font-semibold text-right">Total Due</th>
+                <th className="px-6 py-3 font-semibold text-right">Paid</th>
+                <th className="px-6 py-3 font-semibold text-right">Balance</th>
+                <th className="px-6 py-3 font-semibold text-center">Status</th>
               </tr>
             </thead>
             <tbody>
-              {balances.map((m) => (
+              {filteredBalances.map((m) => (
                 <tr key={m.id} className="border-b last:border-0 hover:bg-gray-50">
                   <td className="px-6 py-3">
-                    <div className="font-medium text-gray-900">{m.name}</div>
-                    {m.phone && <div className="text-sm text-gray-500">{m.phone}</div>}
+                    <div className="font-semibold text-gray-900">{m.name}</div>
+                    {m.phone && <div className="text-sm text-gray-700">{m.phone}</div>}
                   </td>
-                  <td className="px-6 py-3 text-right text-sm">{formatAED(m.totalEventDues)}</td>
-                  <td className="px-6 py-3 text-right text-sm">{formatAED(m.totalPurchaseSplits)}</td>
-                  <td className="px-6 py-3 text-right text-sm font-medium">{formatAED(m.totalDue)}</td>
-                  <td className="px-6 py-3 text-right text-sm text-emerald-600 font-medium">{formatAED(m.totalPaid)}</td>
-                  <td className={`px-6 py-3 text-right text-sm font-bold ${
-                    m.balance > 0 ? "text-red-600" : m.balance < 0 ? "text-emerald-600" : "text-gray-400"
-                  }`}>
-                    {m.balance > 0
-                      ? formatAED(m.balance)
-                      : m.balance < 0
-                        ? `-${formatAED(Math.abs(m.balance))}`
-                        : formatAED(0)}
+                  <td className="px-6 py-3 text-right text-sm text-gray-800">{formatAED(m.totalEventDues)}</td>
+                  <td className="px-6 py-3 text-right text-sm text-gray-800">{formatAED(m.totalPurchaseSplits)}</td>
+                  <td className="px-6 py-3 text-right text-sm font-semibold text-gray-900">{formatAED(m.totalDue)}</td>
+                  <td className="px-6 py-3 text-right text-sm text-emerald-700 font-semibold">{formatAED(m.totalPaid)}</td>
+                  <td className={`px-6 py-3 text-right text-sm font-bold ${m.balance > 0 ? "text-red-600" : m.balance < 0 ? "text-emerald-600" : "text-gray-500"}`}>
+                    {m.balance > 0 ? formatAED(m.balance) : m.balance < 0 ? `-${formatAED(Math.abs(m.balance))}` : formatAED(0)}
                   </td>
                   <td className="px-6 py-3 text-center">
                     {m.balance > 0 ? (
-                      <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-700 font-medium">
-                        Owes
-                      </span>
+                      <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-700 font-semibold">Owes</span>
                     ) : m.balance < 0 ? (
-                      <span className="text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-medium">
-                        Credit
-                      </span>
+                      <span className="text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold">Credit</span>
                     ) : (
-                      <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-500 font-medium">
-                        Settled
-                      </span>
+                      <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600 font-semibold">Settled</span>
                     )}
                   </td>
                 </tr>
               ))}
-              {balances.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-gray-400">
-                    No members yet. Add members to get started.
-                  </td>
-                </tr>
+              {filteredBalances.length === 0 && (
+                <tr><td colSpan={7} className="px-6 py-8 text-center text-gray-600 font-medium">{balanceFilter === "all" ? "No members yet. Add members to get started." : "No members in this category."}</td></tr>
               )}
             </tbody>
           </table>
         </div>
 
-        {/* Quick Summary Footer */}
         {balances.length > 0 && (
-          <div className="px-6 py-4 bg-gray-50 border-t flex flex-wrap gap-6 text-sm">
+          <div className="px-4 md:px-6 py-3 md:py-4 bg-gray-50 border-t flex flex-wrap gap-4 md:gap-6 text-sm">
             {owingMembers.length > 0 && (
-              <div className="text-red-600">
-                <span className="font-semibold">{owingMembers.length}</span> member{owingMembers.length !== 1 ? "s" : ""} owe money
-              </div>
+              <div className="text-red-600 font-medium"><span className="font-bold">{owingMembers.length}</span> owe money</div>
             )}
             {creditMembers.length > 0 && (
-              <div className="text-emerald-600">
-                <span className="font-semibold">{creditMembers.length}</span> member{creditMembers.length !== 1 ? "s" : ""} have advance credit
-              </div>
+              <div className="text-emerald-600 font-medium"><span className="font-bold">{creditMembers.length}</span> have credit</div>
             )}
             {settledMembers.length > 0 && (
-              <div className="text-gray-500">
-                <span className="font-semibold">{settledMembers.length}</span> settled
-              </div>
+              <div className="text-gray-600 font-medium"><span className="font-bold">{settledMembers.length}</span> settled</div>
             )}
           </div>
         )}
@@ -163,7 +226,7 @@ export default function DashboardPage() {
   );
 }
 
-function Card({ label, value, color, subtitle }: { label: string; value: string; color: string; subtitle?: string }) {
+function Card({ label, value, color, subtitle, onClick }: { label: string; value: string; color: string; subtitle?: string; onClick?: () => void }) {
   const colors: Record<string, string> = {
     blue: "bg-blue-50 text-blue-700 border-blue-200",
     amber: "bg-amber-50 text-amber-700 border-amber-200",
@@ -173,10 +236,10 @@ function Card({ label, value, color, subtitle }: { label: string; value: string;
     gray: "bg-gray-50 text-gray-700 border-gray-200",
   };
   return (
-    <div className={`rounded-xl border p-5 ${colors[color]}`}>
-      <div className="text-sm font-medium opacity-75">{label}</div>
-      <div className="text-2xl font-bold mt-1">{value}</div>
-      {subtitle && <div className="text-xs opacity-60 mt-1">{subtitle}</div>}
+    <div onClick={onClick} className={`rounded-xl border p-3 md:p-5 ${colors[color]} ${onClick ? "cursor-pointer hover:shadow-md active:scale-[0.98] transition-all" : ""}`}>
+      <div className="text-xs md:text-sm font-semibold opacity-80">{label}</div>
+      <div className="text-lg md:text-2xl font-bold mt-1">{value}</div>
+      {subtitle && <div className="text-xs opacity-70 mt-1">{subtitle}</div>}
     </div>
   );
 }

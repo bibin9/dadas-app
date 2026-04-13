@@ -1,29 +1,26 @@
-import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { NextRequest, NextResponse } from "next/server";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { memberId, amount, method, reference, notes, date, eventId } = await req.json();
-
-  const payment = await prisma.payment.update({
+  const { description, amount, category, date, reference, notes, eventId } = await req.json();
+  const expense = await prisma.eventExpense.update({
     where: { id },
     data: {
-      memberId,
-      amount,
-      method: method || "cash",
+      description: description.trim(),
+      amount: parseFloat(amount),
+      category: category || "venue",
+      date: new Date(date),
       reference: reference || "",
       notes: notes || "",
-      date: new Date(date),
       eventId: eventId || null,
     },
-    include: { member: true, event: true },
   });
-
-  return NextResponse.json(payment);
+  return NextResponse.json(expense);
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  await prisma.payment.delete({ where: { id } });
+  await prisma.eventExpense.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }

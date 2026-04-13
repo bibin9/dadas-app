@@ -9,6 +9,12 @@ export async function GET() {
   return NextResponse.json(payments);
 }
 
+export async function DELETE(req: NextRequest) {
+  const { ids } = await req.json();
+  await prisma.payment.deleteMany({ where: { id: { in: ids } } });
+  return NextResponse.json({ ok: true });
+}
+
 export async function POST(req: NextRequest) {
   const { memberId, amount, method, reference, notes, date, eventId } = await req.json();
 

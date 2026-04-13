@@ -6,6 +6,7 @@ export async function GET() {
     orderBy: { date: "desc" },
     include: {
       dues: { include: { member: true } },
+      payments: { include: { member: true } },
     },
   });
   return NextResponse.json(events);

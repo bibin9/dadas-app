@@ -79,6 +79,41 @@ const tables = [
     FOREIGN KEY (memberId) REFERENCES Member(id) ON DELETE CASCADE,
     FOREIGN KEY (eventId) REFERENCES Event(id) ON DELETE SET NULL
   )`,
+  `CREATE TABLE IF NOT EXISTS MemberGroup (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    createdAt TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+  `CREATE TABLE IF NOT EXISTS MemberGroupMember (
+    id TEXT PRIMARY KEY,
+    groupId TEXT NOT NULL,
+    memberId TEXT NOT NULL,
+    FOREIGN KEY (groupId) REFERENCES MemberGroup(id) ON DELETE CASCADE,
+    FOREIGN KEY (memberId) REFERENCES Member(id) ON DELETE CASCADE,
+    UNIQUE(groupId, memberId)
+  )`,
+  `CREATE TABLE IF NOT EXISTS EventTemplate (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL DEFAULT 'event',
+    amount REAL NOT NULL DEFAULT 0,
+    amountType TEXT NOT NULL DEFAULT 'total',
+    groupId TEXT,
+    notes TEXT NOT NULL DEFAULT '',
+    createdAt TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+  `CREATE TABLE IF NOT EXISTS EventExpense (
+    id TEXT PRIMARY KEY,
+    description TEXT NOT NULL,
+    amount REAL NOT NULL,
+    category TEXT NOT NULL DEFAULT 'venue',
+    date TEXT NOT NULL,
+    reference TEXT NOT NULL DEFAULT '',
+    notes TEXT NOT NULL DEFAULT '',
+    eventId TEXT,
+    createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (eventId) REFERENCES Event(id) ON DELETE SET NULL
+  )`,
   `CREATE TABLE IF NOT EXISTS Settings (
     id TEXT PRIMARY KEY,
     bankName TEXT NOT NULL DEFAULT '',
@@ -87,7 +122,8 @@ const tables = [
     accountNumber TEXT NOT NULL DEFAULT '',
     swiftCode TEXT NOT NULL DEFAULT '',
     defaultMatchFee REAL NOT NULL DEFAULT 20,
-    groupName TEXT NOT NULL DEFAULT 'Company'
+    groupName TEXT NOT NULL DEFAULT 'Company',
+    autoDeleteDays INTEGER NOT NULL DEFAULT 0
   )`,
 ];
 
