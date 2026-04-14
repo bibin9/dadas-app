@@ -26,6 +26,7 @@ export default function EventsPage() {
   // Inline payment recording
   const [inlinePayMemberId, setInlinePayMemberId] = useState<string | null>(null);
   const [inlinePayMethod, setInlinePayMethod] = useState("cash");
+  const [inlinePayAmount, setInlinePayAmount] = useState("");
   const [inlinePaySubmitting, setInlinePaySubmitting] = useState(false);
 
   // Bulk pay
@@ -139,14 +140,15 @@ export default function EventsPage() {
   async function handleDelete(id: string) { if (!confirm("Delete this event and all its dues?")) return; await fetch(`/api/events/${id}`, { method: "DELETE" }); loadEvents(); }
 
   // --- Inline payment for event detail ---
-  async function recordInlinePayment(eventId: string, memberId: string, amount: number, eventDate: string) {
+  async function recordInlinePayment(eventId: string, memberId: string, defaultAmount: number, eventDate: string) {
     if (inlinePaySubmitting) return; setInlinePaySubmitting(true);
+    const payAmount = inlinePayAmount ? parseFloat(inlinePayAmount) : defaultAmount;
     try {
       await fetch("/api/payments", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ memberId, amount, method: inlinePayMethod, date: eventDate.split("T")[0], eventId, reference: "", notes: "" }),
+        body: JSON.stringify({ memberId, amount: payAmount, method: inlinePayMethod, date: eventDate.split("T")[0], eventId, reference: payAmount !== defaultAmount ? `Adjusted: ${payAmount > defaultAmount ? "+" : ""}${(payAmount - defaultAmount).toFixed(2)} carry forward` : "", notes: "" }),
       });
-      setInlinePayMemberId(null); setInlinePayMethod("cash"); loadEvents();
+      setInlinePayMemberId(null); setInlinePayMethod("cash"); setInlinePayAmount(""); loadEvents();
     } finally { setInlinePaySubmitting(false); }
   }
 
@@ -434,16 +436,18 @@ export default function EventsPage() {
                               <div className="flex items-center gap-2">
                                 <span className="text-sm font-semibold text-red-600">{formatAED(d.amount)}</span>
                                 {inlinePayMemberId === d.member.id ? (
-                                  <div className="flex items-center gap-1.5">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <input type="number" step="0.01" value={inlinePayAmount} onChange={(e) => setInlinePayAmount(e.target.value)}
+                                      placeholder={String(d.amount)} className="w-16 text-xs px-1.5 py-1 border rounded-lg text-gray-800 text-right" />
                                     <select value={inlinePayMethod} onChange={(e) => setInlinePayMethod(e.target.value)} className="text-xs px-1.5 py-1 border rounded-lg text-gray-800">
                                       <option value="cash">Cash</option>
                                       <option value="bank_transfer">Bank</option>
                                     </select>
-                                    <button disabled={inlinePaySubmitting} onClick={() => recordInlinePayment(event.id, d.member.id, d.amount, event.date)} className="bg-emerald-600 text-white text-xs px-2.5 py-1 rounded-lg font-semibold disabled:opacity-50">{inlinePaySubmitting ? "..." : "Confirm"}</button>
-                                    <button onClick={() => setInlinePayMemberId(null)} className="text-gray-500 text-xs px-1.5 py-1">X</button>
+                                    <button disabled={inlinePaySubmitting} onClick={() => recordInlinePayment(event.id, d.member.id, d.amount, event.date)} className="bg-emerald-600 text-white text-xs px-2.5 py-1 rounded-lg font-semibold disabled:opacity-50">{inlinePaySubmitting ? "..." : "Pay"}</button>
+                                    <button onClick={() => { setInlinePayMemberId(null); setInlinePayAmount(""); }} className="text-gray-500 text-xs px-1.5 py-1">X</button>
                                   </div>
                                 ) : (
-                                  <button onClick={() => { setInlinePayMemberId(d.member.id); setInlinePayMethod("cash"); }} className="bg-emerald-600 text-white text-xs px-2.5 py-1 rounded-lg font-semibold">Mark Paid</button>
+                                  <button onClick={() => { setInlinePayMemberId(d.member.id); setInlinePayMethod("cash"); setInlinePayAmount(""); }} className="bg-emerald-600 text-white text-xs px-2.5 py-1 rounded-lg font-semibold">Mark Paid</button>
                                 )}
                               </div>
                             </div>

@@ -25,12 +25,29 @@ export async function POST() {
 
     // Filter to only fully settled matches (every due has a corresponding payment)
     const settledMatchIds: string[] = [];
+    const carryForwardPayments: { memberId: string; amount: number; method: string; date: Date }[] = [];
+
     for (const match of oldMatches) {
-      if (match.dues.length === 0) continue; // skip empty matches
+      if (match.dues.length === 0) continue;
       const paidMemberIds = new Set(match.payments.map((p: { memberId: string }) => p.memberId));
       const allPaid = match.dues.every((d: { memberId: string }) => paidMemberIds.has(d.memberId));
       if (allPaid) {
         settledMatchIds.push(match.id);
+
+        // Check for overpayments — carry forward the excess
+        for (const due of match.dues) {
+          const memberPayments = match.payments.filter((p) => p.memberId === due.memberId);
+          const totalPaid = memberPayments.reduce((sum: number, p) => sum + p.amount, 0);
+          const excess = totalPaid - due.amount;
+          if (excess > 0.01) { // more than 1 fils overpaid
+            carryForwardPayments.push({
+              memberId: due.memberId,
+              amount: excess,
+              method: memberPayments[0]?.method || "cash",
+              date: match.date,
+            });
+          }
+        }
       }
     }
 
@@ -38,8 +55,22 @@ export async function POST() {
       return NextResponse.json({ deleted: 0, message: "No settled matches to clean up" });
     }
 
-    // Delete payments linked to these matches first, then delete the matches
-    // (EventDue cascade deletes automatically, but payments need explicit delete)
+    // Create carry-forward payments for overpayments (unlinked to any event)
+    if (carryForwardPayments.length > 0) {
+      await prisma.payment.createMany({
+        data: carryForwardPayments.map((cf) => ({
+          memberId: cf.memberId,
+          amount: cf.amount,
+          method: cf.method,
+          date: cf.date,
+          reference: "Carry forward from settled match",
+          notes: "Auto-carried excess payment",
+          eventId: null,
+        })),
+      });
+    }
+
+    // Delete payments linked to these matches, then delete the matches
     await prisma.payment.deleteMany({
       where: { eventId: { in: settledMatchIds } },
     });
@@ -49,7 +80,8 @@ export async function POST() {
 
     return NextResponse.json({
       deleted: settledMatchIds.length,
-      message: `Cleaned up ${settledMatchIds.length} fully-settled match(es) older than ${days} days`,
+      carryForwards: carryForwardPayments.length,
+      message: `Cleaned up ${settledMatchIds.length} match(es), ${carryForwardPayments.length} carry-forward credit(s) created`,
     });
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 });

@@ -8,8 +8,6 @@ interface MemberBalance {
   id: string;
   name: string;
   phone: string;
-  totalEventDues: number;
-  totalPurchaseSplits: number;
   totalDue: number;
   totalPaid: number;
   balance: number;
@@ -18,16 +16,12 @@ interface MemberBalance {
 interface DashboardData {
   balances: MemberBalance[];
   totals: {
-    totalDue: number;
-    totalPaid: number;
+    totalReceived: number;
+    totalCosts: number;
+    totalIncome: number;
     totalOutstanding: number;
-    totalCredit: number;
-    memberCount: number;
     groupFund: number;
-    totalEventCosts: number;
-    totalPurchaseCosts: number;
-    totalCompanyIncome: number;
-    totalEventExpenses: number;
+    memberCount: number;
     groupName: string;
   };
 }
@@ -65,11 +59,12 @@ export default function DashboardPage() {
     <div>
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Dashboard</h1>
 
-      {/* Summary Cards - Row 1 */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-3 md:mb-4">
-        <Card label="Total Members" value={String(totals.memberCount)} color="blue" onClick={() => router.push("/members")} />
-        <Card label="Total Collected" value={formatAED(totals.totalPaid)} color="emerald" onClick={() => router.push("/payments")} />
-        <Card label="Outstanding" value={formatAED(totals.totalOutstanding)} color="red" onClick={() => router.push("/reports?tab=outstanding")} />
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4 mb-6 md:mb-8">
+        <Card label="Total Received" value={formatAED(totals.totalReceived)} color="emerald" onClick={() => router.push("/payments")} />
+        <Card label="Total Costs" value={formatAED(totals.totalCosts)} color="red" onClick={() => router.push("/expenses")} />
+        <Card label="Total Income" value={formatAED(totals.totalIncome)} color="purple" onClick={() => router.push("/income")} />
+        <Card label="Outstanding" value={formatAED(totals.totalOutstanding)} color={totals.totalOutstanding > 0 ? "amber" : "emerald"} onClick={() => router.push("/reports?tab=outstanding")} />
         <Card
           label={`${totals.groupName} Fund`}
           value={formatAED(totals.groupFund)}
@@ -77,13 +72,6 @@ export default function DashboardPage() {
           subtitle={totals.groupFund >= 0 ? "Surplus" : "Deficit"}
           onClick={() => router.push("/reports?tab=events")}
         />
-      </div>
-
-      {/* Summary Cards - Row 2 */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 mb-6 md:mb-8">
-        <Card label="Total Dues" value={formatAED(totals.totalDue)} color="amber" onClick={() => router.push("/reports?tab=events")} />
-        <Card label="Advance Credits" value={formatAED(totals.totalCredit)} color="purple" subtitle={`${creditMembers.length} member${creditMembers.length !== 1 ? "s" : ""}`} onClick={() => setBalanceFilter("credits")} />
-        <Card label="Costs" value={formatAED(totals.totalEventCosts + totals.totalPurchaseCosts + totals.totalEventExpenses)} color="gray" onClick={() => router.push("/expenses")} />
       </div>
 
       {/* Outstanding Members */}
@@ -124,7 +112,7 @@ export default function DashboardPage() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
               <h2 className="font-semibold text-gray-900">All Member Balances</h2>
-              <p className="text-sm text-gray-700">Positive = owes money | Negative = advance credit</p>
+              <p className="text-sm text-gray-700">{totals.memberCount} active members</p>
             </div>
             <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
               {([["all", "All"], ["dues", "Dues"], ["settled", "Settled"], ["credits", "Credits"]] as const).map(([key, label]) => (
@@ -168,8 +156,6 @@ export default function DashboardPage() {
             <thead>
               <tr className="text-left text-sm text-gray-700 border-b">
                 <th className="px-6 py-3 font-semibold">Member</th>
-                <th className="px-6 py-3 font-semibold text-right">Event Dues</th>
-                <th className="px-6 py-3 font-semibold text-right">Purchase Splits</th>
                 <th className="px-6 py-3 font-semibold text-right">Total Due</th>
                 <th className="px-6 py-3 font-semibold text-right">Paid</th>
                 <th className="px-6 py-3 font-semibold text-right">Balance</th>
@@ -181,10 +167,7 @@ export default function DashboardPage() {
                 <tr key={m.id} className="border-b last:border-0 hover:bg-gray-50">
                   <td className="px-6 py-3">
                     <div className="font-semibold text-gray-900">{m.name}</div>
-                    {m.phone && <div className="text-sm text-gray-700">{m.phone}</div>}
                   </td>
-                  <td className="px-6 py-3 text-right text-sm text-gray-800">{formatAED(m.totalEventDues)}</td>
-                  <td className="px-6 py-3 text-right text-sm text-gray-800">{formatAED(m.totalPurchaseSplits)}</td>
                   <td className="px-6 py-3 text-right text-sm font-semibold text-gray-900">{formatAED(m.totalDue)}</td>
                   <td className="px-6 py-3 text-right text-sm text-emerald-700 font-semibold">{formatAED(m.totalPaid)}</td>
                   <td className={`px-6 py-3 text-right text-sm font-bold ${m.balance > 0 ? "text-red-600" : m.balance < 0 ? "text-emerald-600" : "text-gray-500"}`}>
@@ -202,7 +185,7 @@ export default function DashboardPage() {
                 </tr>
               ))}
               {filteredBalances.length === 0 && (
-                <tr><td colSpan={7} className="px-6 py-8 text-center text-gray-600 font-medium">{balanceFilter === "all" ? "No members yet. Add members to get started." : "No members in this category."}</td></tr>
+                <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-600 font-medium">{balanceFilter === "all" ? "No members yet. Add members to get started." : "No members in this category."}</td></tr>
               )}
             </tbody>
           </table>

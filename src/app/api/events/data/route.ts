@@ -43,12 +43,33 @@ async function cleanupSettledMatches(days: number) {
     include: { dues: true, payments: true },
   });
   const settledIds: string[] = [];
+  const carryForwards: { memberId: string; amount: number; method: string; date: Date }[] = [];
+
   for (const match of oldMatches) {
     if (match.dues.length === 0) continue;
     const paidMemberIds = new Set(match.payments.map((p) => p.memberId));
-    if (match.dues.every((d) => paidMemberIds.has(d.memberId))) settledIds.push(match.id);
+    if (match.dues.every((d) => paidMemberIds.has(d.memberId))) {
+      settledIds.push(match.id);
+      // Carry forward overpayments
+      for (const due of match.dues) {
+        const memberPays = match.payments.filter((p) => p.memberId === due.memberId);
+        const totalPaid = memberPays.reduce((s: number, p) => s + p.amount, 0);
+        const excess = totalPaid - due.amount;
+        if (excess > 0.01) {
+          carryForwards.push({ memberId: due.memberId, amount: excess, method: memberPays[0]?.method || "cash", date: match.date });
+        }
+      }
+    }
   }
   if (settledIds.length > 0) {
+    if (carryForwards.length > 0) {
+      await prisma.payment.createMany({
+        data: carryForwards.map((cf) => ({
+          memberId: cf.memberId, amount: cf.amount, method: cf.method, date: cf.date,
+          reference: "Carry forward from settled match", notes: "Auto-carried excess payment", eventId: null,
+        })),
+      });
+    }
     await prisma.payment.deleteMany({ where: { eventId: { in: settledIds } } });
     await prisma.event.deleteMany({ where: { id: { in: settledIds } } });
   }
