@@ -14,7 +14,7 @@ interface EventReport {
   totalExpenses: number; expenses: ExpenseItem[];
   totalRevenue: number; totalCosts: number; netPL: number;
   playerCount: number; paidCount: number; unpaidCount: number;
-  paidMembers: { name: string; amount: number; isGuest: boolean; method?: string }[];
+  paidMembers: { name: string; amount: number; paidAmount: number; isGuest: boolean; method?: string }[];
   unpaidMembers: { name: string; amount: number; isGuest: boolean }[];
 }
 interface OutstandingMember {
@@ -73,7 +73,7 @@ function ReportsContent() {
     msg += `\n`;
     if (ev.paidMembers.length > 0) {
       msg += `✅ *Paid (${ev.paidCount}):*\n`;
-      ev.paidMembers.forEach((m) => { msg += `  ${m.name} - ${formatAED(m.amount)} (${methodLabel(m.method || "cash")})\n`; });
+      ev.paidMembers.forEach((m) => { msg += `  ${m.name} - ${formatAED(m.paidAmount)}${m.paidAmount !== m.amount ? ` (due: ${formatAED(m.amount)})` : ""} (${methodLabel(m.method || "cash")})\n`; });
       msg += `\n`;
     }
     if (ev.unpaidMembers.length > 0) {
@@ -236,7 +236,8 @@ function ReportsContent() {
                               <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${m.method === "bank_transfer" ? "bg-blue-100 text-blue-700" : m.method === "company_contribution" ? "bg-purple-100 text-purple-700" : "bg-amber-100 text-amber-700"}`}>
                                 {m.method === "bank_transfer" ? "Bank" : m.method === "company_contribution" ? "Company" : "Cash"}
                               </span>
-                              <span className="font-semibold text-emerald-700">{formatAED(m.amount)}</span>
+                              <span className="font-semibold text-emerald-700">{formatAED(m.paidAmount)}</span>
+                              {m.paidAmount !== m.amount && <span className="text-xs text-gray-500">(due: {formatAED(m.amount)})</span>}
                             </div>
                           </div>
                         ))}</div>

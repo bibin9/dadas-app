@@ -64,8 +64,9 @@ export async function GET() {
       outstanding: totalDue - totalPaid,
       playerCount: event.dues.length, paidCount: paidDues.length, unpaidCount: unpaidDues.length,
       paidMembers: paidDues.map((d) => {
-        const payment = event.payments.find((p) => p.memberId === d.memberId);
-        return { name: d.member.name, amount: d.amount, isGuest: d.member.isGuest, method: payment?.method || "cash" };
+        const memberPayments = event.payments.filter((p) => p.memberId === d.memberId);
+        const paidAmount = memberPayments.reduce((s: number, p) => s + p.amount, 0);
+        return { name: d.member.name, amount: d.amount, paidAmount, isGuest: d.member.isGuest, method: memberPayments[0]?.method || "cash" };
       }),
       unpaidMembers: unpaidDues.map((d) => ({ name: d.member.name, amount: d.amount, isGuest: d.member.isGuest })),
     };
