@@ -38,14 +38,18 @@ export default function ExpensesPage() {
   const [notes, setNotes] = useState("");
   const [eventId, setEventId] = useState("");
 
-  useEffect(() => {
-    loadExpenses();
-    fetch("/api/events").then((r) => r.json()).then(setEvents);
-  }, []);
+  const [loading, setLoading] = useState(true);
 
-  async function loadExpenses() {
-    setExpenses(await (await fetch("/api/expenses")).json());
+  useEffect(() => { loadAll(); }, []);
+
+  async function loadAll() {
+    const data = await (await fetch("/api/expenses/data")).json();
+    setExpenses(data.expenses);
+    setEvents(data.events);
+    setLoading(false);
   }
+
+  function loadExpenses() { loadAll(); }
 
   function resetForm() {
     setDescription(""); setAmount(""); setCategory("venue");
@@ -92,6 +96,8 @@ export default function ExpensesPage() {
 
   const totalExpenses = filteredExpenses.reduce((s, e) => s + e.amount, 0);
   const getCatInfo = (cat: string) => categories.find((c) => c.value === cat) || categories[7];
+
+  if (loading) return <div className="text-gray-700 font-medium p-4">Loading...</div>;
 
   return (
     <div>

@@ -2,115 +2,82 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
 export async function GET() {
-  const events = await prisma.event.findMany({
-    orderBy: { date: "desc" },
-    include: {
-      dues: { include: { member: true } },
-      payments: { include: { member: true } },
-    },
-  });
+  const [events, members, settings, companyIncomes, eventExpenses] = await Promise.all([
+    prisma.event.findMany({
+      orderBy: { date: "desc" },
+      include: { dues: { include: { member: true } }, payments: { include: { member: true } } },
+    }),
+    prisma.member.findMany({
+      where: { active: true },
+      orderBy: { name: "asc" },
+      include: { eventDues: true, purchaseSplits: true, payments: true },
+    }),
+    prisma.settings.findUnique({ where: { id: "main" } }),
+    prisma.companyIncome.findMany({ orderBy: { date: "desc" } }),
+    prisma.eventExpense.findMany({ orderBy: { date: "desc" } }),
+  ]);
 
-  const members = await prisma.member.findMany({
-    where: { active: true },
-    orderBy: { name: "asc" },
-    include: {
-      eventDues: true,
-      purchaseSplits: true,
-      payments: true,
-    },
-  });
+  // Build income/expense maps by eventId for O(1) lookup
+  const incomeByEvent = new Map<string, typeof companyIncomes>();
+  for (const i of companyIncomes) {
+    if (!i.eventId) continue;
+    const arr = incomeByEvent.get(i.eventId) || [];
+    arr.push(i);
+    incomeByEvent.set(i.eventId, arr);
+  }
+  const expenseByEvent = new Map<string, typeof eventExpenses>();
+  for (const e of eventExpenses) {
+    if (!e.eventId) continue;
+    const arr = expenseByEvent.get(e.eventId) || [];
+    arr.push(e);
+    expenseByEvent.set(e.eventId, arr);
+  }
 
-  const settings = await prisma.settings.findUnique({ where: { id: "main" } });
-
-  // Get company income linked to events
-  const companyIncomes = await prisma.companyIncome.findMany({
-    orderBy: { date: "desc" },
-  });
-
-  // Get event expenses
-  const eventExpenses = await prisma.eventExpense.findMany({
-    orderBy: { date: "desc" },
-  });
-
-  // Event-wise collection report with P&L
   const eventReports = events.map((event) => {
-    const totalDue = event.dues.reduce((s, d) => s + d.amount, 0);
-    const totalPaid = event.payments.reduce((s, p) => s + p.amount, 0);
+    let totalDue = 0, totalPaid = 0;
+    for (const d of event.dues) totalDue += d.amount;
+    for (const p of event.payments) totalPaid += p.amount;
+
     const paidMemberIds = new Set(event.payments.map((p) => p.memberId));
     const unpaidDues = event.dues.filter((d) => !paidMemberIds.has(d.memberId));
     const paidDues = event.dues.filter((d) => paidMemberIds.has(d.memberId));
 
-    // Income linked to this event
-    const incomes = companyIncomes.filter((i) => i.eventId === event.id);
-    const totalIncome = incomes.reduce((s, i) => s + i.amount, 0);
+    const incomes = incomeByEvent.get(event.id) || [];
+    let totalIncome = 0;
+    for (const i of incomes) totalIncome += i.amount;
 
-    // Expenses linked to this event
-    const expenses = eventExpenses.filter((e) => e.eventId === event.id);
-    const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0);
+    const expenses = expenseByEvent.get(event.id) || [];
+    let totalExpenses = 0;
+    for (const e of expenses) totalExpenses += e.amount;
 
-    // P&L: Revenue (contributions + income) - Costs (expenses + event totalCost)
     const totalRevenue = totalPaid + totalIncome;
     const totalCosts = totalExpenses + event.totalCost;
-    const netPL = totalRevenue - totalCosts;
 
     return {
-      id: event.id,
-      name: event.name,
-      type: event.type,
-      date: event.date,
-      perHeadFee: event.perHeadFee,
-      totalCost: event.totalCost,
-      totalDue,
-      totalPaid,
-      totalIncome,
+      id: event.id, name: event.name, type: event.type, date: event.date,
+      perHeadFee: event.perHeadFee, totalCost: event.totalCost,
+      totalDue, totalPaid, totalIncome,
       incomes: incomes.map((i) => ({ description: i.description, amount: i.amount, category: i.category })),
       totalExpenses,
       expenses: expenses.map((e) => ({ description: e.description, amount: e.amount, category: e.category })),
-      totalRevenue,
-      totalCosts,
-      netPL,
+      totalRevenue, totalCosts, netPL: totalRevenue - totalCosts,
       outstanding: totalDue - totalPaid,
-      playerCount: event.dues.length,
-      paidCount: paidDues.length,
-      unpaidCount: unpaidDues.length,
+      playerCount: event.dues.length, paidCount: paidDues.length, unpaidCount: unpaidDues.length,
       paidMembers: paidDues.map((d) => {
         const payment = event.payments.find((p) => p.memberId === d.memberId);
-        return {
-          name: d.member.name,
-          amount: d.amount,
-          isGuest: d.member.isGuest,
-          method: payment?.method || "cash",
-        };
+        return { name: d.member.name, amount: d.amount, isGuest: d.member.isGuest, method: payment?.method || "cash" };
       }),
-      unpaidMembers: unpaidDues.map((d) => ({
-        name: d.member.name,
-        amount: d.amount,
-        isGuest: d.member.isGuest,
-      })),
+      unpaidMembers: unpaidDues.map((d) => ({ name: d.member.name, amount: d.amount, isGuest: d.member.isGuest })),
     };
   });
 
-  // Outstanding balances report
   const outstandingReport = members.map((member) => {
-    const totalEventDues = member.eventDues.reduce((sum, d) => sum + d.amount, 0);
-    const totalPurchaseSplits = member.purchaseSplits.reduce((sum, s) => sum + s.amount, 0);
-    const totalDue = totalEventDues + totalPurchaseSplits;
-    const totalPaid = member.payments.reduce((sum, p) => sum + p.amount, 0);
-    const balance = totalDue - totalPaid;
-
-    return {
-      id: member.id,
-      name: member.name,
-      phone: member.phone,
-      totalDue,
-      totalPaid,
-      balance,
-    };
+    let totalDue = 0, totalPaid = 0;
+    for (const d of member.eventDues) totalDue += d.amount;
+    for (const s of member.purchaseSplits) totalDue += s.amount;
+    for (const p of member.payments) totalPaid += p.amount;
+    return { id: member.id, name: member.name, phone: member.phone, totalDue, totalPaid, balance: totalDue - totalPaid };
   }).filter((m) => m.balance > 0).sort((a, b) => b.balance - a.balance);
 
-  return NextResponse.json({
-    eventReports,
-    outstandingReport,
-    groupName: settings?.groupName || "Company",
-  });
+  return NextResponse.json({ eventReports, outstandingReport, groupName: settings?.groupName || "Company" });
 }

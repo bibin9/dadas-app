@@ -2,65 +2,48 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
 export async function GET() {
-  // Clean up orphaned payments (payments linked to deleted events)
-  await prisma.payment.deleteMany({
-    where: {
-      eventId: { not: null },
-      event: null,
-    },
-  });
+  // Clean up orphaned payments in background (non-blocking)
+  prisma.payment.deleteMany({ where: { eventId: { not: null }, event: null } }).catch(() => {});
 
-  const members = await prisma.member.findMany({
-    where: { active: true },
-    orderBy: { name: "asc" },
-    include: { eventDues: true, purchaseSplits: true, payments: true },
-  });
-  const events = await prisma.event.findMany();
-  const purchases = await prisma.purchase.findMany();
-  const settings = await prisma.settings.findUnique({ where: { id: "main" } });
-  const companyIncomes = await prisma.companyIncome.findMany();
-  const allExpenses = await prisma.eventExpense.findMany();
+  const [members, events, purchases, settings, companyIncomes, allExpenses] = await Promise.all([
+    prisma.member.findMany({
+      where: { active: true },
+      orderBy: { name: "asc" },
+      include: { eventDues: true, purchaseSplits: true, payments: true },
+    }),
+    prisma.event.findMany(),
+    prisma.purchase.findMany(),
+    prisma.settings.findUnique({ where: { id: "main" } }),
+    prisma.companyIncome.findMany(),
+    prisma.eventExpense.findMany(),
+  ]);
 
-  const totalCompanyIncome = companyIncomes.reduce((sum, i) => sum + i.amount, 0);
+  let totalCompanyIncome = 0;
+  for (const i of companyIncomes) totalCompanyIncome += i.amount;
   let totalEventExpenses = 0;
-  for (const exp of allExpenses) { totalEventExpenses += exp.amount; }
+  for (const e of allExpenses) totalEventExpenses += e.amount;
 
   const balances = members.map((member) => {
-    const totalDue = member.eventDues.reduce((sum, d) => sum + d.amount, 0)
-      + member.purchaseSplits.reduce((sum, s) => sum + s.amount, 0);
-    const totalPaid = member.payments.reduce((sum, p) => sum + p.amount, 0);
-    const balance = totalDue - totalPaid;
+    let totalDue = 0;
+    for (const d of member.eventDues) totalDue += d.amount;
+    for (const s of member.purchaseSplits) totalDue += s.amount;
+    let totalPaid = 0;
+    for (const p of member.payments) totalPaid += p.amount;
 
-    return {
-      id: member.id,
-      name: member.name,
-      phone: member.phone,
-      totalDue,
-      totalPaid,
-      balance,
-    };
+    return { id: member.id, name: member.name, phone: member.phone, totalDue, totalPaid, balance: totalDue - totalPaid };
   });
 
-  // Total received = all member payments
-  const totalReceived = balances.reduce((sum, b) => sum + b.totalPaid, 0);
-  // Total costs = event ground costs + purchase costs + event expenses
-  const totalEventCosts = events.reduce((sum, e) => sum + e.totalCost, 0);
-  const totalPurchaseCosts = purchases.reduce((sum, p) => sum + p.totalAmount, 0);
+  let totalReceived = 0, totalOutstanding = 0;
+  let totalEventCosts = 0, totalPurchaseCosts = 0;
+  for (const b of balances) { totalReceived += b.totalPaid; totalOutstanding += Math.max(0, b.balance); }
+  for (const e of events) totalEventCosts += e.totalCost;
+  for (const p of purchases) totalPurchaseCosts += p.totalAmount;
+
   const totalCosts = totalEventCosts + totalPurchaseCosts + totalEventExpenses;
-  // Outstanding = members who still owe
-  const totalOutstanding = balances.reduce((sum, b) => sum + Math.max(0, b.balance), 0);
-  // Fund = received + income - costs
   const groupFund = totalReceived + totalCompanyIncome - totalCosts;
 
-  const totals = {
-    totalReceived,
-    totalCosts,
-    totalIncome: totalCompanyIncome,
-    totalOutstanding,
-    groupFund,
-    memberCount: members.length,
-    groupName: settings?.groupName || "Company",
-  };
-
-  return NextResponse.json({ balances, totals });
+  return NextResponse.json({
+    balances,
+    totals: { totalReceived, totalCosts, totalIncome: totalCompanyIncome, totalOutstanding, groupFund, memberCount: members.length, groupName: settings?.groupName || "Company" },
+  });
 }

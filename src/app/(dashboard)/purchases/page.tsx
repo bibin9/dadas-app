@@ -40,18 +40,18 @@ export default function PurchasesPage() {
   const [submitting, setSubmitting] = useState(false);
   const [groups, setGroups] = useState<MemberGroup[]>([]);
 
-  useEffect(() => {
-    loadPurchases();
-    fetch("/api/members").then((r) => r.json()).then((m) => {
-      setMembers(m.filter((x: Member & { active: boolean }) => x.active));
-    });
-    fetch("/api/groups").then((r) => r.json()).then(setGroups);
-  }, []);
+  const [loading, setLoading] = useState(true);
 
-  async function loadPurchases() {
-    const res = await fetch("/api/purchases");
-    setPurchases(await res.json());
+  useEffect(() => { loadAll(); }, []);
+
+  async function loadAll() {
+    const data = await (await fetch("/api/purchases/data")).json();
+    setPurchases(data.purchases);
+    setMembers(data.members);
+    setGroups(data.groups);
+    setLoading(false);
   }
+  function loadPurchases() { loadAll(); }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault(); if (submitting) return; setSubmitting(true);
@@ -98,6 +98,8 @@ export default function PurchasesPage() {
   const equalSplitAmount = selectedMembers.length > 0 && totalAmount
     ? (parseFloat(totalAmount) / selectedMembers.length).toFixed(2)
     : "0.00";
+
+  if (loading) return <div className="text-gray-700 font-medium p-4">Loading...</div>;
 
   return (
     <div>

@@ -38,24 +38,23 @@ export default function SettingsPage() {
   const [tplNotes, setTplNotes] = useState("");
   const [tplSubmitting, setTplSubmitting] = useState(false);
 
-  useEffect(() => {
-    fetch("/api/settings").then((r) => r.json()).then((s) => {
-      setBankName(s.bankName);
-      setAccountName(s.accountName);
-      setIban(s.iban);
-      setAccountNumber(s.accountNumber);
-      setSwiftCode(s.swiftCode);
-      setDefaultMatchFee(String(s.defaultMatchFee || 20));
-      setGroupName(s.groupName || "Company");
-      setAutoDeleteDays(String(s.autoDeleteDays || 0));
-    });
-    loadTemplates();
-    fetch("/api/groups").then((r) => r.json()).then(setGroups);
-  }, []);
+  const [loading, setLoading] = useState(true);
 
-  async function loadTemplates() {
-    setTemplates(await (await fetch("/api/templates")).json());
+  useEffect(() => { loadAll(); }, []);
+
+  async function loadAll() {
+    const data = await (await fetch("/api/settings/data")).json();
+    const s = data.settings;
+    setBankName(s.bankName); setAccountName(s.accountName); setIban(s.iban);
+    setAccountNumber(s.accountNumber); setSwiftCode(s.swiftCode);
+    setDefaultMatchFee(String(s.defaultMatchFee || 20));
+    setGroupName(s.groupName || "Company");
+    setAutoDeleteDays(String(s.autoDeleteDays || 0));
+    setTemplates(data.templates);
+    setGroups(data.groups);
+    setLoading(false);
   }
+  function loadTemplates() { loadAll(); }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault(); if (savingSettings) return; setSavingSettings(true);
@@ -150,6 +149,8 @@ export default function SettingsPage() {
     if (!groupId) return "All Members";
     return groups.find((g) => g.id === groupId)?.name || "Unknown Group";
   }
+
+  if (loading) return <div className="text-gray-700 font-medium p-4">Loading...</div>;
 
   return (
     <div>

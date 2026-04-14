@@ -33,14 +33,18 @@ export default function IncomePage() {
   const [notes, setNotes] = useState("");
   const [eventId, setEventId] = useState("");
 
-  useEffect(() => {
-    loadIncomes();
-    fetch("/api/events").then((r) => r.json()).then(setEvents);
-  }, []);
+  const [loading, setLoading] = useState(true);
 
-  async function loadIncomes() {
-    setIncomes(await (await fetch("/api/income")).json());
+  useEffect(() => { loadAll(); }, []);
+
+  async function loadAll() {
+    const data = await (await fetch("/api/income/data")).json();
+    setIncomes(data.incomes);
+    setEvents(data.events);
+    setLoading(false);
   }
+
+  function loadIncomes() { loadAll(); }
 
   function resetForm() {
     setDescription(""); setAmount(""); setCategory("sponsorship");
@@ -81,6 +85,8 @@ export default function IncomePage() {
 
   const totalIncome = incomes.reduce((s, i) => s + i.amount, 0);
   const getCatInfo = (cat: string) => categories.find((c) => c.value === cat) || categories[3];
+
+  if (loading) return <div className="text-gray-700 font-medium p-4">Loading...</div>;
 
   return (
     <div>

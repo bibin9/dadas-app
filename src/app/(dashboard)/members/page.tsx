@@ -29,20 +29,18 @@ export default function MembersPage() {
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [groupSubmitting, setGroupSubmitting] = useState(false);
 
-  useEffect(() => {
-    loadMembers();
-    loadGroups();
-  }, []);
+  const [loading, setLoading] = useState(true);
 
-  async function loadMembers() {
-    const res = await fetch("/api/members");
-    setMembers(await res.json());
-  }
+  useEffect(() => { loadAll(); }, []);
 
-  async function loadGroups() {
-    const res = await fetch("/api/groups");
-    setGroups(await res.json());
+  async function loadAll() {
+    const data = await (await fetch("/api/members/data")).json();
+    setMembers(data.members);
+    setGroups(data.groups);
+    setLoading(false);
   }
+  function loadMembers() { loadAll(); }
+  function loadGroups() { loadAll(); }
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -134,6 +132,8 @@ export default function MembersPage() {
   }
 
   const activeMembers = members.filter((m) => m.active);
+
+  if (loading) return <div className="text-gray-700 font-medium p-4">Loading...</div>;
 
   return (
     <div>
