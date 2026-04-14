@@ -5,6 +5,9 @@ export async function GET() {
   // Clean up orphaned payments in background (non-blocking)
   prisma.payment.deleteMany({ where: { eventId: { not: null }, event: null } }).catch(() => {});
 
+  // Clean up duplicate payments (same member + same event, keep only the latest)
+  cleanupDuplicatePayments().catch(() => {});
+
   const [members, events, purchases, settings, companyIncomes, allExpenses] = await Promise.all([
     prisma.member.findMany({
       where: { active: true },
@@ -46,4 +49,25 @@ export async function GET() {
     balances,
     totals: { totalReceived, totalCosts, totalIncome: totalCompanyIncome, totalOutstanding, groupFund, memberCount: members.length, groupName: settings?.groupName || "Company" },
   });
+}
+
+async function cleanupDuplicatePayments() {
+  const payments = await prisma.payment.findMany({
+    where: { eventId: { not: null } },
+    orderBy: { createdAt: "desc" },
+  });
+  // Group by memberId+eventId, keep only the latest
+  const seen = new Map<string, string>(); // key -> id to keep
+  const toDelete: string[] = [];
+  for (const p of payments) {
+    const key = `${p.memberId}:${p.eventId}`;
+    if (seen.has(key)) {
+      toDelete.push(p.id); // older duplicate
+    } else {
+      seen.set(key, p.id);
+    }
+  }
+  if (toDelete.length > 0) {
+    await prisma.payment.deleteMany({ where: { id: { in: toDelete } } });
+  }
 }

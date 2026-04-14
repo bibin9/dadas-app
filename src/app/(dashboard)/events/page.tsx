@@ -404,12 +404,15 @@ export default function EventsPage() {
                       <h4 className="text-sm font-bold text-emerald-700 mb-2">Paid ({paidDues.length})</h4>
                       <div className="space-y-1">
                         {paidDues.map((d) => {
-                          const payment = (event.payments || []).find((p) => p.member.id === d.member.id);
+                          const memberPayments = (event.payments || []).filter((p) => p.member.id === d.member.id);
+                          const paidAmount = memberPayments.reduce((s, p) => s + p.amount, 0);
+                          const payment = memberPayments[0];
                           return (
                             <div key={d.id} className="flex items-center justify-between bg-emerald-50 rounded-lg px-3 py-2">
                               <span className="text-sm font-medium text-gray-900">{d.member.name}{d.member.isGuest ? " (guest)" : ""}</span>
                               <div className="flex items-center gap-2">
-                                <span className="text-sm font-semibold text-emerald-700">{formatAED(d.amount)}</span>
+                                <span className="text-sm font-semibold text-emerald-700">{formatAED(paidAmount)}</span>
+                                {paidAmount !== d.amount && <span className="text-xs text-gray-500">(due: {formatAED(d.amount)})</span>}
                                 {payment && <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${payment.method === "cash" ? "bg-amber-100 text-amber-800" : "bg-blue-100 text-blue-800"}`}>{payment.method === "cash" ? "Cash" : "Bank"}</span>}
                               </div>
                             </div>
