@@ -8,7 +8,7 @@ interface EventDue { id: string; amount: number; paid: boolean; member: Member }
 interface EventPayment { id: string; amount: number; method: string; member: Member }
 interface Event { id: string; name: string; type: string; date: string; perHeadFee: number; totalCost: number; notes: string; dues: EventDue[]; payments?: EventPayment[] }
 interface Settings { defaultMatchFee: number; groupName: string }
-interface PlayerPayment { playing: boolean; paid: boolean; method: string }
+interface PlayerPayment { playing: boolean; paid: boolean; method: string; customAmount?: string }
 interface GroupMember { id: string; member: Member }
 interface MemberGroup { id: string; name: string; members: GroupMember[] }
 interface EventTemplate { id: string; name: string; type: string; amount: number; amountType: string; groupId: string | null; notes: string }
@@ -129,7 +129,7 @@ export default function EventsPage() {
     try {
       const fee = parseFloat(matchFee);
       const playingIds = Object.entries(playerPayments).filter(([, v]) => v.playing).map(([id]) => id);
-      const paidPlayers = Object.entries(playerPayments).filter(([, v]) => v.playing && v.paid).map(([id, v]) => ({ memberId: id, amount: fee, method: v.method }));
+      const paidPlayers = Object.entries(playerPayments).filter(([, v]) => v.playing && v.paid).map(([id, v]) => ({ memberId: id, amount: v.customAmount ? parseFloat(v.customAmount) : fee, method: v.method }));
       const cost = parseFloat(matchCost || "0"); const collected = fee * (playingIds.length + guestNames.filter((g) => g.trim()).length); const surplus = collected - cost;
       if (editingEvent) { await fetch(`/api/events/${editingEvent.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: editingEvent.name, date: matchDate, perHeadFee: fee, totalCost: cost, notes: matchNotes, memberIds: playingIds, guestNames: guestNames.filter((g) => g.trim()) }) }); }
       else { await fetch("/api/events", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: "Football Match", date: matchDate, perHeadFee: fee, totalCost: cost, notes: matchNotes || (surplus > 0 ? `Surplus ${formatAED(surplus)} to ${settings.groupName} fund` : ""), memberIds: playingIds, type: "match", payments: paidPlayers, guestNames: guestNames.filter((g) => g.trim()) }) }); }
@@ -279,7 +279,11 @@ export default function EventsPage() {
                     <div key={m.id} className={`flex items-center gap-3 px-3 py-2.5 ${pp.playing ? "bg-white" : "bg-gray-50"}`}>
                       <button type="button" onClick={() => togglePlaying(m.id)} className={`w-7 h-7 rounded-full border-2 flex items-center justify-center text-xs font-bold flex-shrink-0 ${pp.playing ? "bg-blue-600 border-blue-600 text-white" : "bg-white border-gray-300 text-gray-300"}`}>{pp.playing ? "✓" : ""}</button>
                       <span className={`flex-1 font-semibold text-sm min-w-0 truncate ${pp.playing ? "text-gray-900" : "text-gray-400 line-through"}`}>{m.name}</span>
-                      <span className={`text-sm font-medium flex-shrink-0 ${pp.playing ? "text-gray-800" : "text-gray-400"}`}>{pp.playing ? formatAED(parseFloat(matchFee || "0")) : ""}</span>
+                      {pp.playing && !pp.paid && <span className="text-sm font-medium flex-shrink-0 text-gray-800">{formatAED(parseFloat(matchFee || "0"))}</span>}
+                      {pp.playing && pp.paid && (
+                        <input type="number" step="0.01" value={pp.customAmount ?? ""} onChange={(e) => setPlayerPayments((p) => ({ ...p, [m.id]: { ...p[m.id], customAmount: e.target.value } }))}
+                          placeholder={matchFee || "0"} className="w-16 text-sm text-right px-1.5 py-1 border border-emerald-300 rounded-lg text-gray-800 font-medium flex-shrink-0" />
+                      )}
                       {pp.playing && (
                         <div className="flex items-center gap-1.5 flex-shrink-0">
                           <button type="button" onClick={() => togglePaid(m.id)} className={`px-2.5 py-1 rounded-lg text-xs font-semibold border ${pp.paid ? "bg-emerald-600 border-emerald-600 text-white" : "bg-white border-red-300 text-red-600"}`}>{pp.paid ? "Paid" : "Unpaid"}</button>
