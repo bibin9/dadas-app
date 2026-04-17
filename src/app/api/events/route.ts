@@ -15,6 +15,19 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const { name, date, perHeadFee, notes, memberIds, type, totalCost, payments, guestNames } = await req.json();
 
+  // Prevent duplicate match on the same day
+  if (type === "match") {
+    const matchDate = new Date(date);
+    const startOfDay = new Date(matchDate.getFullYear(), matchDate.getMonth(), matchDate.getDate());
+    const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+    const existing = await prisma.event.findFirst({
+      where: { type: "match", date: { gte: startOfDay, lt: endOfDay } },
+    });
+    if (existing) {
+      return NextResponse.json({ error: `A match already exists for this date (${existing.name}). Delete it first or pick a different date.` }, { status: 409 });
+    }
+  }
+
   // guestNames: string[] — create temporary guest members
   const guestIds: string[] = [];
   if (guestNames && guestNames.length > 0) {

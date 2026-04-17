@@ -132,7 +132,10 @@ export default function EventsPage() {
       const paidPlayers = Object.entries(playerPayments).filter(([, v]) => v.playing && v.paid).map(([id, v]) => ({ memberId: id, amount: v.customAmount ? parseFloat(v.customAmount) : fee, method: v.method }));
       const cost = parseFloat(matchCost || "0"); const collected = fee * (playingIds.length + guestNames.filter((g) => g.trim()).length); const surplus = collected - cost;
       if (editingEvent) { await fetch(`/api/events/${editingEvent.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: editingEvent.name, date: matchDate, perHeadFee: fee, totalCost: cost, notes: matchNotes, memberIds: playingIds, guestNames: guestNames.filter((g) => g.trim()) }) }); }
-      else { await fetch("/api/events", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: "Football Match", date: matchDate, perHeadFee: fee, totalCost: cost, notes: matchNotes || (surplus > 0 ? `Surplus ${formatAED(surplus)} to ${settings.groupName} fund` : ""), memberIds: playingIds, type: "match", payments: paidPlayers, guestNames: guestNames.filter((g) => g.trim()) }) }); }
+      else {
+        const res = await fetch("/api/events", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: "Football Match", date: matchDate, perHeadFee: fee, totalCost: cost, notes: matchNotes || (surplus > 0 ? `Surplus ${formatAED(surplus)} to ${settings.groupName} fund` : ""), memberIds: playingIds, type: "match", payments: paidPlayers, guestNames: guestNames.filter((g) => g.trim()) }) });
+        if (!res.ok) { const err = await res.json(); alert(err.error || "Failed to create match"); return; }
+      }
       setShowMatchForm(false); setEditingEvent(null); setGuestNames([]); setMatchSearch(""); loadAll();
     } finally { setSubmitting(false); }
   }
