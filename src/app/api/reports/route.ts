@@ -92,14 +92,25 @@ async function handleDadas() {
 }
 
 async function handleBigTicket() {
-  const [members, purchases, settings] = await Promise.all([
+  const settings = await prisma.settings.findUnique({ where: { id: "main" } });
+  const bigTicketGroupId = settings?.bigTicketGroupId || "";
+
+  let memberFilter: { active: true; id?: { in: string[] } } = { active: true };
+  if (bigTicketGroupId) {
+    const groupMembers = await prisma.memberGroupMember.findMany({
+      where: { groupId: bigTicketGroupId },
+      select: { memberId: true },
+    });
+    memberFilter = { active: true, id: { in: groupMembers.map((gm) => gm.memberId) } };
+  }
+
+  const [members, purchases] = await Promise.all([
     prisma.member.findMany({
-      where: { active: true },
+      where: memberFilter,
       orderBy: { name: "asc" },
       include: { purchaseSplits: { include: { purchase: true } } },
     }),
     prisma.purchase.findMany({ orderBy: { date: "desc" } }),
-    prisma.settings.findUnique({ where: { id: "main" } }),
   ]);
 
   // Purchase reports

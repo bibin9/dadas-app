@@ -144,6 +144,7 @@ const tables = [
     swiftCode TEXT NOT NULL DEFAULT '',
     defaultMatchFee REAL NOT NULL DEFAULT 20,
     defaultBigTicketShare REAL NOT NULL DEFAULT 50,
+    bigTicketGroupId TEXT NOT NULL DEFAULT '',
     groupName TEXT NOT NULL DEFAULT 'Company',
     autoDeleteDays INTEGER NOT NULL DEFAULT 0
   )`,
@@ -156,6 +157,7 @@ for (const sql of tables) {
 // Add new columns to existing tables (safe to run multiple times)
 const migrations = [
   `ALTER TABLE Settings ADD COLUMN defaultBigTicketShare REAL NOT NULL DEFAULT 50`,
+  `ALTER TABLE Settings ADD COLUMN bigTicketGroupId TEXT NOT NULL DEFAULT ''`,
 ];
 for (const sql of migrations) {
   try { await db.execute(sql); } catch { /* column already exists */ }

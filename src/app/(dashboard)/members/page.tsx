@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useProfile } from "@/lib/profile-context";
 
 interface Member {
   id: string;
@@ -30,11 +31,12 @@ export default function MembersPage() {
   const [groupSubmitting, setGroupSubmitting] = useState(false);
 
   const [loading, setLoading] = useState(true);
+  const { profile } = useProfile();
 
-  useEffect(() => { loadAll(); }, []);
+  useEffect(() => { loadAll(); }, [profile]);
 
   async function loadAll() {
-    const data = await (await fetch("/api/members/data")).json();
+    const data = await (await fetch(`/api/members/data?profile=${profile}`)).json();
     setMembers(data.members);
     setGroups(data.groups);
     setLoading(false);

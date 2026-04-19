@@ -13,6 +13,7 @@ export default function SettingsPage() {
   const [swiftCode, setSwiftCode] = useState("");
   const [defaultMatchFee, setDefaultMatchFee] = useState("20");
   const [defaultBigTicketShare, setDefaultBigTicketShare] = useState("50");
+  const [bigTicketGroupId, setBigTicketGroupId] = useState("");
   const [groupName, setGroupName] = useState("Company");
   const [autoDeleteDays, setAutoDeleteDays] = useState("0");
   const [saved, setSaved] = useState(false);
@@ -50,6 +51,7 @@ export default function SettingsPage() {
     setAccountNumber(s.accountNumber); setSwiftCode(s.swiftCode);
     setDefaultMatchFee(String(s.defaultMatchFee || 20));
     setDefaultBigTicketShare(String(s.defaultBigTicketShare || 50));
+    setBigTicketGroupId(s.bigTicketGroupId || "");
     setGroupName(s.groupName || "Company");
     setAutoDeleteDays(String(s.autoDeleteDays || 0));
     setTemplates(data.templates);
@@ -68,6 +70,7 @@ export default function SettingsPage() {
           bankName, accountName, iban, accountNumber, swiftCode,
           defaultMatchFee: parseFloat(defaultMatchFee),
           defaultBigTicketShare: parseFloat(defaultBigTicketShare) || 50,
+          bigTicketGroupId,
           groupName,
           autoDeleteDays: parseInt(autoDeleteDays) || 0,
         }),
@@ -288,6 +291,15 @@ export default function SettingsPage() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-gray-900"
                 placeholder="50" />
               <p className="text-xs text-gray-600 mt-1">Per member share for Big Ticket purchases</p>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-800 mb-1">Big Ticket Member Group</label>
+              <select value={bigTicketGroupId} onChange={(e) => setBigTicketGroupId(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-gray-900">
+                <option value="">All Active Members</option>
+                {groups.map((g) => <option key={g.id} value={g.id}>{g.name} ({g.members.length} members)</option>)}
+              </select>
+              <p className="text-xs text-gray-600 mt-1">Members shown in Big Ticket profile</p>
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-800 mb-1">Auto-Delete Settled Matches</label>
