@@ -114,6 +114,27 @@ const tables = [
     createdAt TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (eventId) REFERENCES Event(id) ON DELETE SET NULL
   )`,
+  `CREATE TABLE IF NOT EXISTS PlayerSkill (
+    id TEXT PRIMARY KEY,
+    memberId TEXT NOT NULL UNIQUE,
+    skillTier TEXT NOT NULL DEFAULT 'silver',
+    ageGroup TEXT NOT NULL DEFAULT 'senior',
+    position TEXT NOT NULL DEFAULT 'any',
+    createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+    updatedAt TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (memberId) REFERENCES Member(id) ON DELETE CASCADE
+  )`,
+  `CREATE TABLE IF NOT EXISTS TeamSheet (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    date TEXT NOT NULL,
+    teamAName TEXT NOT NULL DEFAULT 'Team A',
+    teamBName TEXT NOT NULL DEFAULT 'Team B',
+    teamAIds TEXT NOT NULL,
+    teamBIds TEXT NOT NULL,
+    notes TEXT NOT NULL DEFAULT '',
+    createdAt TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
   `CREATE TABLE IF NOT EXISTS Settings (
     id TEXT PRIMARY KEY,
     bankName TEXT NOT NULL DEFAULT '',
