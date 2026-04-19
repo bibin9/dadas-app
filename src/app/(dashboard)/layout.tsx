@@ -28,10 +28,17 @@ const bigticketNavItems = [
 
 function ProfileSwitcher({ compact }: { compact?: boolean }) {
   const { profile, setProfile } = useProfile();
+  const router = useRouter();
+  function switchProfile(p: Profile) {
+    if (p !== profile) {
+      setProfile(p);
+      router.push("/");
+    }
+  }
   return (
     <div className={`flex ${compact ? "gap-1" : "gap-1 p-1"} bg-white/10 rounded-lg`}>
       <button
-        onClick={() => setProfile("dadas")}
+        onClick={() => switchProfile("dadas")}
         className={`flex items-center gap-1.5 px-3 ${compact ? "py-1.5 text-xs" : "py-2 text-sm"} rounded-md font-semibold transition-all ${
           profile === "dadas"
             ? "bg-white text-[#1a2744] shadow-sm"
@@ -42,7 +49,7 @@ function ProfileSwitcher({ compact }: { compact?: boolean }) {
         <span>{compact ? "DADAS" : "DADAS FC"}</span>
       </button>
       <button
-        onClick={() => setProfile("bigticket")}
+        onClick={() => switchProfile("bigticket")}
         className={`flex items-center gap-1.5 px-3 ${compact ? "py-1.5 text-xs" : "py-2 text-sm"} rounded-md font-semibold transition-all ${
           profile === "bigticket"
             ? "bg-white text-[#1a2744] shadow-sm"
