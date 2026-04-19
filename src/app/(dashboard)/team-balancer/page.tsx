@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 
 interface Member {
   id: string;
@@ -41,18 +41,6 @@ interface GuestPlayer {
   ageGroup: string;
 }
 
-interface TeamSheet {
-  id: string;
-  name: string;
-  date: string;
-  teamAName: string;
-  teamBName: string;
-  teamAIds: string;
-  teamBIds: string;
-  notes: string;
-  createdAt: string;
-}
-
 const SKILL_TIERS = [
   { value: "legend", label: "Legend", color: "bg-purple-600 text-white" },
   { value: "master", label: "Master", color: "bg-red-600 text-white" },
@@ -76,6 +64,23 @@ const POSITIONS = [
   { value: "forward", label: "FWD" },
 ];
 
+const JERSEY_COLORS = [
+  { name: "White", bg: "bg-white", border: "border-gray-300", text: "text-gray-900", headerBg: "bg-gray-100", headerText: "text-gray-900", footerBg: "bg-gray-50", footerText: "text-gray-800", emoji: "🤍" },
+  { name: "Black", bg: "bg-gray-900", border: "border-gray-700", text: "text-white", headerBg: "bg-black", headerText: "text-white", footerBg: "bg-gray-800", footerText: "text-gray-100", emoji: "🖤" },
+  { name: "Red", bg: "bg-white", border: "border-red-300", text: "text-gray-900", headerBg: "bg-red-600", headerText: "text-white", footerBg: "bg-red-50", footerText: "text-red-800", emoji: "❤️" },
+  { name: "Blue", bg: "bg-white", border: "border-blue-300", text: "text-gray-900", headerBg: "bg-blue-600", headerText: "text-white", footerBg: "bg-blue-50", footerText: "text-blue-800", emoji: "💙" },
+  { name: "Green", bg: "bg-white", border: "border-green-300", text: "text-gray-900", headerBg: "bg-green-600", headerText: "text-white", footerBg: "bg-green-50", footerText: "text-green-800", emoji: "💚" },
+  { name: "Yellow", bg: "bg-white", border: "border-yellow-300", text: "text-gray-900", headerBg: "bg-yellow-500", headerText: "text-gray-900", footerBg: "bg-yellow-50", footerText: "text-yellow-800", emoji: "💛" },
+];
+
+function getRandomJerseyPair(): [number, number] {
+  const count = JERSEY_COLORS.length;
+  const a = Math.floor(Math.random() * count);
+  let b = Math.floor(Math.random() * (count - 1));
+  if (b >= a) b++;
+  return [a, b];
+}
+
 function getSkillBadge(tier: string) {
   const t = SKILL_TIERS.find((s) => s.value === tier) || SKILL_TIERS[3];
   return (
@@ -86,7 +91,7 @@ function getSkillBadge(tier: string) {
 }
 
 export default function TeamBalancerPage() {
-  const [tab, setTab] = useState<"pool" | "generate" | "sheets">("pool");
+  const [tab, setTab] = useState<"pool" | "generate">("generate");
   const [members, setMembers] = useState<Member[]>([]);
   const [skills, setSkills] = useState<Record<string, PlayerSkill>>({});
   const [loading, setLoading] = useState(true);
@@ -106,13 +111,8 @@ export default function TeamBalancerPage() {
   const [guestAge, setGuestAge] = useState("senior");
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState<TeamResult | null>(null);
-  const [teamAName, setTeamAName] = useState("Team A");
-  const [teamBName, setTeamBName] = useState("Team B");
-
-  // Sheets tab state
-  const [sheets, setSheets] = useState<TeamSheet[]>([]);
-  const [expandedSheet, setExpandedSheet] = useState<string | null>(null);
-  const [sheetsLoading, setSheetsLoading] = useState(false);
+  const [jerseyA, setJerseyA] = useState(0);
+  const [jerseyB, setJerseyB] = useState(2);
 
   useEffect(() => {
     loadData();
@@ -134,13 +134,6 @@ export default function TeamBalancerPage() {
     });
     setSkills(skillMap);
     setLoading(false);
-  }
-
-  async function loadSheets() {
-    setSheetsLoading(true);
-    const res = await fetch("/api/team-balancer/sheets");
-    setSheets(await res.json());
-    setSheetsLoading(false);
   }
 
   // ---- Pool Tab ----
@@ -181,102 +174,89 @@ export default function TeamBalancerPage() {
   }
 
   // ---- Generate Tab ----
-  function togglePlayer(id: string) {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
+  const totalPlayers = selectedIds.size + guests.length;
 
-  function toggleAll() {
-    if (selectedIds.size === members.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(members.map((m) => m.id)));
+  const doGenerate = useCallback(async (ids: Set<string>, guestList: GuestPlayer[]) => {
+    if (ids.size + guestList.length < 2) {
+      setResult(null);
+      return;
     }
-  }
-
-  function addGuest() {
-    if (!guestName.trim()) return;
-    setGuests((prev) => [
-      ...prev,
-      { name: guestName.trim(), skillTier: guestTier, ageGroup: guestAge },
-    ]);
-    setGuestName("");
-    setGuestTier("silver");
-    setGuestAge("senior");
-  }
-
-  function removeGuest(i: number) {
-    setGuests((prev) => prev.filter((_, idx) => idx !== i));
-  }
-
-  async function generateTeams() {
-    if (selectedIds.size + guests.length < 2) return;
     setGenerating(true);
     const res = await fetch("/api/team-balancer/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        playerIds: Array.from(selectedIds),
-        guestPlayers: guests,
+        playerIds: Array.from(ids),
+        guestPlayers: guestList,
       }),
     });
-    setResult(await res.json());
+    const data = await res.json();
+    setResult(data);
+    // Assign random jersey colors each time
+    const [a, b] = getRandomJerseyPair();
+    setJerseyA(a);
+    setJerseyB(b);
     setGenerating(false);
+  }, []);
+
+  function togglePlayer(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      // Auto-generate
+      doGenerate(next, guests);
+      return next;
+    });
   }
 
-  async function saveSheet() {
-    if (!result) return;
-    const now = new Date();
-    const start = new Date(now.getFullYear(), 0, 1);
-    const weekNum = Math.ceil(((now.getTime() - start.getTime()) / 86400000 + start.getDay() + 1) / 7);
-    const name = `Week ${weekNum} - ${now.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
-    await fetch("/api/team-balancer/sheets", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name,
-        date: new Date().toISOString(),
-        teamAName,
-        teamBName,
-        teamAIds: result.teamA.map((p) => `${p.id}:${p.name}:${p.skillTier}`).join(","),
-        teamBIds: result.teamB.map((p) => `${p.id}:${p.name}:${p.skillTier}`).join(","),
-        notes: `Score: ${teamAName} ${result.scoreA} - ${teamBName} ${result.scoreB}`,
-      }),
-    });
-    alert("Team sheet saved!");
+  function toggleAll() {
+    const allSelected = selectedIds.size === members.length;
+    const next = allSelected ? new Set<string>() : new Set(members.map((m) => m.id));
+    setSelectedIds(next);
+    doGenerate(next, guests);
+  }
+
+  function addGuest() {
+    if (!guestName.trim()) return;
+    const newGuests = [...guests, { name: guestName.trim(), skillTier: guestTier, ageGroup: guestAge }];
+    setGuests(newGuests);
+    setGuestName("");
+    setGuestTier("silver");
+    setGuestAge("senior");
+    // Auto-generate with new guest
+    doGenerate(selectedIds, newGuests);
+  }
+
+  function removeGuest(i: number) {
+    const newGuests = guests.filter((_, idx) => idx !== i);
+    setGuests(newGuests);
+    doGenerate(selectedIds, newGuests);
+  }
+
+  function shuffleTeams() {
+    doGenerate(selectedIds, guests);
   }
 
   async function shareWhatsApp() {
     if (!result) return;
-    const text = `${teamAName} (${result.scoreA} pts)\n${result.teamA.map((p) => `  ${p.name} [${p.skillTier}]`).join("\n")}\n\n${teamBName} (${result.scoreB} pts)\n${result.teamB.map((p) => `  ${p.name} [${p.skillTier}]`).join("\n")}\n\nDifference: ${result.difference} pts`;
+    const colorA = JERSEY_COLORS[jerseyA];
+    const colorB = JERSEY_COLORS[jerseyB];
+    const now = new Date();
+    const dateStr = now.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+
+    const text = `⚽ *DADAS FC - Team Sheet*\n📅 ${dateStr}\n\n${colorA.emoji} *${colorA.name} Jersey* (${result.scoreA} pts)\n${result.teamA.map((p, i) => `${i + 1}. ${p.name}${p.isGuest ? " (Guest)" : ""} [${p.skillTier.charAt(0).toUpperCase() + p.skillTier.slice(1)}]`).join("\n")}\n\n${colorB.emoji} *${colorB.name} Jersey* (${result.scoreB} pts)\n${result.teamB.map((p, i) => `${i + 1}. ${p.name}${p.isGuest ? " (Guest)" : ""} [${p.skillTier.charAt(0).toUpperCase() + p.skillTier.slice(1)}]`).join("\n")}\n\n📊 Balance: ${result.difference === 0 ? "Perfectly Balanced!" : `${result.difference} pts difference`}\n👥 ${result.teamA.length} vs ${result.teamB.length} players`;
 
     if (navigator.share) {
       try {
-        await navigator.share({ title: "Team Sheet", text });
+        await navigator.share({ title: "DADAS FC Team Sheet", text });
       } catch {
         /* user cancelled */
       }
     } else {
-      window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
+      await navigator.clipboard.writeText(text);
+      alert("Copied to clipboard!");
     }
-  }
-
-  // ---- Sheets Tab ----
-  async function deleteSheet(id: string) {
-    if (!confirm("Delete this team sheet?")) return;
-    await fetch(`/api/team-balancer/sheets/${id}`, { method: "DELETE" });
-    loadSheets();
-  }
-
-  function parseTeamIds(str: string) {
-    return str.split(",").map((entry) => {
-      const parts = entry.split(":");
-      return { id: parts[0], name: parts[1] || parts[0], skillTier: parts[2] || "silver" };
-    });
   }
 
   const filteredMembers =
@@ -290,7 +270,7 @@ export default function TeamBalancerPage() {
   if (loading) {
     return (
       <div className="max-w-6xl mx-auto">
-        <h1 className="text-2xl font-bold text-gray-800 mb-6">Team Balancer</h1>
+        <h1 className="text-2xl font-bold text-gray-800 mb-6">⚽ Team Maker</h1>
         <div className="space-y-4">
           {[1, 2, 3, 4, 5].map((i) => (
             <div key={i} className="bg-white rounded-xl p-4 shadow animate-pulse">
@@ -305,21 +285,17 @@ export default function TeamBalancerPage() {
 
   return (
     <div className="max-w-6xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-800 mb-6">Team Balancer</h1>
+      <h1 className="text-2xl font-bold text-gray-800 mb-6">⚽ Team Maker</h1>
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6 bg-gray-100 rounded-xl p-1">
         {[
+          { key: "generate" as const, label: "Make Teams" },
           { key: "pool" as const, label: "Player Pool" },
-          { key: "generate" as const, label: "Generate Teams" },
-          { key: "sheets" as const, label: "Saved Sheets" },
         ].map((t) => (
           <button
             key={t.key}
-            onClick={() => {
-              setTab(t.key);
-              if (t.key === "sheets") loadSheets();
-            }}
+            onClick={() => setTab(t.key)}
             className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-semibold transition-colors ${
               tab === t.key
                 ? "bg-[#1a2744] text-white shadow"
@@ -331,9 +307,254 @@ export default function TeamBalancerPage() {
         ))}
       </div>
 
+      {/* ========== GENERATE TAB ========== */}
+      {tab === "generate" && (
+        <div>
+          {/* Player count badge */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <span className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-bold ${
+                totalPlayers >= 2 ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-500"
+              }`}>
+                👥 {totalPlayers} Player{totalPlayers !== 1 ? "s" : ""} Selected
+                {totalPlayers >= 2 && <span className="text-xs font-normal">({Math.floor(totalPlayers / 2)} vs {Math.ceil(totalPlayers / 2)})</span>}
+              </span>
+              {guests.length > 0 && (
+                <span className="text-xs text-gray-500">({guests.length} guest{guests.length !== 1 ? "s" : ""})</span>
+              )}
+            </div>
+            <button
+              onClick={toggleAll}
+              className="text-sm text-blue-600 hover:text-blue-800 font-medium px-3 py-1.5 rounded-lg hover:bg-blue-50"
+            >
+              {selectedIds.size === members.length ? "Deselect All" : "Select All"}
+            </button>
+          </div>
+
+          {/* Player selection grid */}
+          <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mb-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 max-h-[350px] overflow-y-auto">
+              {members.map((m) => {
+                const s = skills[m.id];
+                const tier = s?.skillTier ?? "silver";
+                const isSelected = selectedIds.has(m.id);
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => togglePlayer(m.id)}
+                    className={`flex flex-col items-center gap-1 p-3 rounded-xl text-center transition-all ${
+                      isSelected
+                        ? "bg-blue-50 border-2 border-blue-400 shadow-sm"
+                        : "bg-gray-50 border-2 border-transparent hover:border-gray-200"
+                    }`}
+                  >
+                    <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                      isSelected ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-500"
+                    }`}>
+                      {isSelected ? "✓" : m.name.charAt(0)}
+                    </span>
+                    <span className="text-xs font-medium text-gray-800 truncate w-full">{m.name}</span>
+                    {getSkillBadge(tier)}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Guest players */}
+          <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mb-4">
+            <h3 className="font-semibold text-gray-800 mb-3 text-sm">➕ Add Guest Players</h3>
+            <div className="flex flex-wrap gap-2 items-end">
+              <div className="flex-1 min-w-[120px]">
+                <input
+                  type="text"
+                  placeholder="Guest name"
+                  value={guestName}
+                  onChange={(e) => setGuestName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") addGuest(); }}
+                  className="w-full border rounded-lg px-3 py-2 text-sm"
+                />
+              </div>
+              <select
+                value={guestTier}
+                onChange={(e) => setGuestTier(e.target.value)}
+                className="border rounded-lg px-2 py-2 text-sm bg-white"
+              >
+                {SKILL_TIERS.map((t) => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
+              <select
+                value={guestAge}
+                onChange={(e) => setGuestAge(e.target.value)}
+                className="border rounded-lg px-2 py-2 text-sm bg-white"
+              >
+                {AGE_GROUPS.map((a) => (
+                  <option key={a.value} value={a.value}>{a.label}</option>
+                ))}
+              </select>
+              <button
+                onClick={addGuest}
+                disabled={!guestName.trim()}
+                className="bg-[#1a2744] text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-[#243556] disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Add Guest
+              </button>
+            </div>
+            {guests.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {guests.map((g, i) => (
+                  <span key={i} className="inline-flex items-center gap-1.5 bg-gray-100 rounded-full pl-3 pr-1.5 py-1 text-sm">
+                    <span className="font-medium text-gray-700">{g.name}</span>
+                    {getSkillBadge(g.skillTier)}
+                    <button
+                      onClick={() => removeGuest(i)}
+                      className="w-5 h-5 rounded-full bg-red-100 text-red-600 hover:bg-red-200 flex items-center justify-center text-xs font-bold ml-1"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Generating indicator */}
+          {generating && (
+            <div className="text-center py-6">
+              <div className="inline-flex items-center gap-2 text-gray-500">
+                <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Balancing teams...
+              </div>
+            </div>
+          )}
+
+          {/* Minimum players hint */}
+          {!generating && totalPlayers < 2 && totalPlayers > 0 && (
+            <div className="text-center py-4 text-sm text-amber-600 bg-amber-50 rounded-xl">
+              Select at least 2 players to auto-generate teams
+            </div>
+          )}
+
+          {/* Results */}
+          {!generating && result && (
+            <div>
+              {/* Score difference */}
+              <div className="text-center mb-4">
+                <span
+                  className={`inline-block px-4 py-2 rounded-full text-sm font-bold ${
+                    result.difference === 0
+                      ? "bg-green-100 text-green-800"
+                      : result.difference <= 1
+                      ? "bg-yellow-100 text-yellow-800"
+                      : "bg-red-100 text-red-800"
+                  }`}
+                >
+                  {result.difference === 0
+                    ? "⚖️ Perfectly Balanced!"
+                    : `⚖️ Difference: ${result.difference} pts`}
+                </span>
+              </div>
+
+              {/* Teams side by side with jersey colors */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                {/* Team A */}
+                {(() => {
+                  const jersey = JERSEY_COLORS[jerseyA];
+                  return (
+                    <div className={`${jersey.bg} rounded-xl shadow-sm border-2 ${jersey.border} overflow-hidden`}>
+                      <div className={`${jersey.headerBg} ${jersey.headerText} px-4 py-3 font-bold text-center text-lg`}>
+                        {jersey.emoji} {jersey.name} Jersey
+                      </div>
+                      <div className="p-3 space-y-1.5">
+                        {result.teamA.map((p, i) => (
+                          <div
+                            key={p.id}
+                            className={`flex items-center gap-2 py-1.5 px-2 rounded-lg ${
+                              jersey.name === "Black" ? "border-b border-gray-700 last:border-0" : "border-b border-gray-100 last:border-0"
+                            }`}
+                          >
+                            <span className={`text-xs w-5 font-bold ${jersey.name === "Black" ? "text-gray-400" : "text-gray-400"}`}>{i + 1}</span>
+                            <span className={`font-medium flex-1 truncate text-sm ${jersey.text}`}>
+                              {p.name}
+                              {p.isGuest && <span className="text-xs opacity-60 ml-1">(G)</span>}
+                            </span>
+                            {getSkillBadge(p.skillTier)}
+                          </div>
+                        ))}
+                      </div>
+                      <div className={`${jersey.footerBg} px-4 py-2 text-center font-bold ${jersey.footerText} text-sm`}>
+                        {result.scoreA} pts • {result.teamA.length} players
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* VS divider - mobile only */}
+                <div className="md:hidden flex items-center justify-center -my-2">
+                  <span className="bg-[#1a2744] text-white w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-lg">VS</span>
+                </div>
+
+                {/* Team B */}
+                {(() => {
+                  const jersey = JERSEY_COLORS[jerseyB];
+                  return (
+                    <div className={`${jersey.bg} rounded-xl shadow-sm border-2 ${jersey.border} overflow-hidden`}>
+                      <div className={`${jersey.headerBg} ${jersey.headerText} px-4 py-3 font-bold text-center text-lg`}>
+                        {jersey.emoji} {jersey.name} Jersey
+                      </div>
+                      <div className="p-3 space-y-1.5">
+                        {result.teamB.map((p, i) => (
+                          <div
+                            key={p.id}
+                            className={`flex items-center gap-2 py-1.5 px-2 rounded-lg ${
+                              jersey.name === "Black" ? "border-b border-gray-700 last:border-0" : "border-b border-gray-100 last:border-0"
+                            }`}
+                          >
+                            <span className={`text-xs w-5 font-bold ${jersey.name === "Black" ? "text-gray-400" : "text-gray-400"}`}>{i + 1}</span>
+                            <span className={`font-medium flex-1 truncate text-sm ${jersey.text}`}>
+                              {p.name}
+                              {p.isGuest && <span className="text-xs opacity-60 ml-1">(G)</span>}
+                            </span>
+                            {getSkillBadge(p.skillTier)}
+                          </div>
+                        ))}
+                      </div>
+                      <div className={`${jersey.footerBg} px-4 py-2 text-center font-bold ${jersey.footerText} text-sm`}>
+                        {result.scoreB} pts • {result.teamB.length} players
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex flex-wrap gap-3">
+                <button
+                  onClick={shuffleTeams}
+                  className="flex-1 bg-gray-200 text-gray-800 py-3 rounded-xl font-semibold hover:bg-gray-300 transition-colors flex items-center justify-center gap-2"
+                >
+                  🔀 Shuffle
+                </button>
+                <button
+                  onClick={shareWhatsApp}
+                  className="flex-1 bg-green-600 text-white py-3 rounded-xl font-semibold hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+                >
+                  📤 Share
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ========== POOL TAB ========== */}
       {tab === "pool" && (
         <div>
+          <p className="text-sm text-gray-500 mb-4">Set each player's skill level, age group and position. This is used to balance teams.</p>
           {/* Filter */}
           <div className="mb-4 flex items-center gap-2 flex-wrap">
             <span className="text-sm font-medium text-gray-600">Filter:</span>
@@ -343,19 +564,22 @@ export default function TeamBalancerPage() {
                 filterTier === "all" ? "bg-[#1a2744] text-white" : "bg-gray-200 text-gray-600"
               }`}
             >
-              All
+              All ({members.length})
             </button>
-            {SKILL_TIERS.map((t) => (
-              <button
-                key={t.value}
-                onClick={() => setFilterTier(t.value)}
-                className={`px-3 py-1 rounded-full text-xs font-bold ${
-                  filterTier === t.value ? t.color : "bg-gray-200 text-gray-600"
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
+            {SKILL_TIERS.map((t) => {
+              const count = members.filter((m) => (skills[m.id]?.skillTier ?? "silver") === t.value).length;
+              return (
+                <button
+                  key={t.value}
+                  onClick={() => setFilterTier(t.value)}
+                  className={`px-3 py-1 rounded-full text-xs font-bold ${
+                    filterTier === t.value ? t.color : "bg-gray-200 text-gray-600"
+                  }`}
+                >
+                  {t.label} ({count})
+                </button>
+              );
+            })}
           </div>
 
           {/* Player list */}
@@ -370,58 +594,52 @@ export default function TeamBalancerPage() {
               return (
                 <div
                   key={m.id}
-                  className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex flex-col sm:flex-row sm:items-center gap-3"
+                  className="bg-white rounded-xl p-3 shadow-sm border border-gray-100 flex flex-col sm:flex-row sm:items-center gap-2"
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold text-gray-800 truncate">{m.name}</span>
+                      <span className="font-semibold text-gray-800 truncate text-sm">{m.name}</span>
                       {getSkillBadge(ev.skillTier)}
                     </div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
                     <select
                       value={ev.skillTier}
                       onChange={(e) => updateEdit(m.id, "skillTier", e.target.value)}
-                      className="border rounded-lg px-2 py-1.5 text-sm bg-white"
+                      className="border rounded-lg px-2 py-1.5 text-xs bg-white"
                     >
                       {SKILL_TIERS.map((t) => (
-                        <option key={t.value} value={t.value}>
-                          {t.label}
-                        </option>
+                        <option key={t.value} value={t.value}>{t.label}</option>
                       ))}
                     </select>
                     <select
                       value={ev.ageGroup}
                       onChange={(e) => updateEdit(m.id, "ageGroup", e.target.value)}
-                      className="border rounded-lg px-2 py-1.5 text-sm bg-white"
+                      className="border rounded-lg px-2 py-1.5 text-xs bg-white"
                     >
                       {AGE_GROUPS.map((a) => (
-                        <option key={a.value} value={a.value}>
-                          {a.label}
-                        </option>
+                        <option key={a.value} value={a.value}>{a.label}</option>
                       ))}
                     </select>
                     <select
                       value={ev.position}
                       onChange={(e) => updateEdit(m.id, "position", e.target.value)}
-                      className="border rounded-lg px-2 py-1.5 text-sm bg-white"
+                      className="border rounded-lg px-2 py-1.5 text-xs bg-white"
                     >
                       {POSITIONS.map((p) => (
-                        <option key={p.value} value={p.value}>
-                          {p.label}
-                        </option>
+                        <option key={p.value} value={p.value}>{p.label}</option>
                       ))}
                     </select>
                     <button
                       onClick={() => saveSkill(m.id)}
                       disabled={savingId === m.id || !hasChanges}
-                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                         hasChanges
                           ? "bg-blue-600 text-white hover:bg-blue-700"
                           : "bg-gray-100 text-gray-400 cursor-not-allowed"
                       }`}
                     >
-                      {savingId === m.id ? "Saving..." : "Save"}
+                      {savingId === m.id ? "..." : "Save"}
                     </button>
                   </div>
                 </div>
@@ -431,343 +649,6 @@ export default function TeamBalancerPage() {
               <div className="text-center py-12 text-gray-400">No players found</div>
             )}
           </div>
-        </div>
-      )}
-
-      {/* ========== GENERATE TAB ========== */}
-      {tab === "generate" && (
-        <div>
-          {/* Player selection */}
-          <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mb-4">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="font-semibold text-gray-800">Select Players</h2>
-              <button
-                onClick={toggleAll}
-                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-              >
-                {selectedIds.size === members.length ? "Deselect All" : "Select All"}
-              </button>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-[400px] overflow-y-auto">
-              {members.map((m) => {
-                const s = skills[m.id];
-                const tier = s?.skillTier ?? "silver";
-                return (
-                  <label
-                    key={m.id}
-                    className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors ${
-                      selectedIds.has(m.id)
-                        ? "bg-blue-50 border border-blue-200"
-                        : "hover:bg-gray-50 border border-transparent"
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.has(m.id)}
-                      onChange={() => togglePlayer(m.id)}
-                      className="rounded"
-                    />
-                    <span className="text-sm font-medium text-gray-700 truncate">{m.name}</span>
-                    {getSkillBadge(tier)}
-                  </label>
-                );
-              })}
-            </div>
-            <div className="mt-3 text-sm text-gray-500">
-              {selectedIds.size} player{selectedIds.size !== 1 ? "s" : ""} selected
-            </div>
-          </div>
-
-          {/* Guest players */}
-          <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mb-4">
-            <h2 className="font-semibold text-gray-800 mb-3">Guest Players</h2>
-            <div className="flex flex-wrap gap-2 mb-3">
-              <input
-                type="text"
-                placeholder="Guest name"
-                value={guestName}
-                onChange={(e) => setGuestName(e.target.value)}
-                className="border rounded-lg px-3 py-1.5 text-sm flex-1 min-w-[140px]"
-              />
-              <select
-                value={guestTier}
-                onChange={(e) => setGuestTier(e.target.value)}
-                className="border rounded-lg px-2 py-1.5 text-sm"
-              >
-                {SKILL_TIERS.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={guestAge}
-                onChange={(e) => setGuestAge(e.target.value)}
-                className="border rounded-lg px-2 py-1.5 text-sm"
-              >
-                {AGE_GROUPS.map((a) => (
-                  <option key={a.value} value={a.value}>
-                    {a.label}
-                  </option>
-                ))}
-              </select>
-              <button
-                onClick={addGuest}
-                className="bg-gray-800 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-gray-700"
-              >
-                Add
-              </button>
-            </div>
-            {guests.length > 0 && (
-              <div className="space-y-1">
-                {guests.map((g, i) => (
-                  <div key={i} className="flex items-center gap-2 text-sm">
-                    <span className="font-medium text-gray-700">{g.name}</span>
-                    {getSkillBadge(g.skillTier)}
-                    <span className="text-gray-400">{g.ageGroup}</span>
-                    <button
-                      onClick={() => removeGuest(i)}
-                      className="text-red-500 hover:text-red-700 ml-auto"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Generate button */}
-          <button
-            onClick={generateTeams}
-            disabled={generating || selectedIds.size + guests.length < 2}
-            className="w-full bg-[#1a2744] text-white py-4 rounded-xl text-lg font-bold hover:bg-[#243556] transition-colors disabled:opacity-50 disabled:cursor-not-allowed mb-6 shadow-lg"
-          >
-            {generating ? "Generating..." : "Generate Balanced Teams"}
-          </button>
-
-          {/* Results */}
-          {result && (
-            <div>
-              {/* Team names */}
-              <div className="flex gap-4 mb-4">
-                <input
-                  type="text"
-                  value={teamAName}
-                  onChange={(e) => setTeamAName(e.target.value)}
-                  className="border rounded-lg px-3 py-2 text-sm font-bold flex-1 text-center"
-                />
-                <span className="text-gray-400 self-center font-bold">VS</span>
-                <input
-                  type="text"
-                  value={teamBName}
-                  onChange={(e) => setTeamBName(e.target.value)}
-                  className="border rounded-lg px-3 py-2 text-sm font-bold flex-1 text-center"
-                />
-              </div>
-
-              {/* Score difference */}
-              <div className="text-center mb-4">
-                <span
-                  className={`inline-block px-4 py-1.5 rounded-full text-sm font-bold ${
-                    result.difference === 0
-                      ? "bg-green-100 text-green-800"
-                      : result.difference <= 1
-                      ? "bg-yellow-100 text-yellow-800"
-                      : "bg-red-100 text-red-800"
-                  }`}
-                >
-                  {result.difference === 0
-                    ? "Perfectly Balanced!"
-                    : `Difference: ${result.difference} pts`}
-                </span>
-              </div>
-
-              {/* Teams side by side */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                {/* Team A */}
-                <div className="bg-white rounded-xl shadow-sm border-2 border-blue-200 overflow-hidden">
-                  <div className="bg-blue-600 text-white px-4 py-3 font-bold text-center">
-                    {teamAName}
-                  </div>
-                  <div className="p-4 space-y-2">
-                    {result.teamA.map((p, i) => (
-                      <div
-                        key={p.id}
-                        className="flex items-center gap-2 py-1.5 border-b border-gray-50 last:border-0"
-                      >
-                        <span className="text-gray-400 text-xs w-5">{i + 1}</span>
-                        <span className="font-medium text-gray-800 flex-1 truncate">
-                          {p.name}
-                          {p.isGuest && (
-                            <span className="text-xs text-gray-400 ml-1">(Guest)</span>
-                          )}
-                        </span>
-                        {getSkillBadge(p.skillTier)}
-                        <span className="text-xs text-gray-400">{p.score}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="bg-blue-50 px-4 py-2 text-center font-bold text-blue-800">
-                    Total: {result.scoreA} pts ({result.teamA.length} players)
-                  </div>
-                </div>
-
-                {/* Team B */}
-                <div className="bg-white rounded-xl shadow-sm border-2 border-red-200 overflow-hidden">
-                  <div className="bg-red-600 text-white px-4 py-3 font-bold text-center">
-                    {teamBName}
-                  </div>
-                  <div className="p-4 space-y-2">
-                    {result.teamB.map((p, i) => (
-                      <div
-                        key={p.id}
-                        className="flex items-center gap-2 py-1.5 border-b border-gray-50 last:border-0"
-                      >
-                        <span className="text-gray-400 text-xs w-5">{i + 1}</span>
-                        <span className="font-medium text-gray-800 flex-1 truncate">
-                          {p.name}
-                          {p.isGuest && (
-                            <span className="text-xs text-gray-400 ml-1">(Guest)</span>
-                          )}
-                        </span>
-                        {getSkillBadge(p.skillTier)}
-                        <span className="text-xs text-gray-400">{p.score}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="bg-red-50 px-4 py-2 text-center font-bold text-red-800">
-                    Total: {result.scoreB} pts ({result.teamB.length} players)
-                  </div>
-                </div>
-              </div>
-
-              {/* Action buttons */}
-              <div className="flex flex-wrap gap-3">
-                <button
-                  onClick={generateTeams}
-                  className="flex-1 bg-gray-200 text-gray-800 py-3 rounded-xl font-semibold hover:bg-gray-300 transition-colors"
-                >
-                  Shuffle Again
-                </button>
-                <button
-                  onClick={saveSheet}
-                  className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition-colors"
-                >
-                  Save Team Sheet
-                </button>
-                <button
-                  onClick={shareWhatsApp}
-                  className="flex-1 bg-green-600 text-white py-3 rounded-xl font-semibold hover:bg-green-700 transition-colors"
-                >
-                  Share via WhatsApp
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ========== SHEETS TAB ========== */}
-      {tab === "sheets" && (
-        <div>
-          {sheetsLoading ? (
-            <div className="space-y-4">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="bg-white rounded-xl p-4 shadow animate-pulse">
-                  <div className="h-5 bg-gray-200 rounded w-1/3 mb-2" />
-                  <div className="h-4 bg-gray-100 rounded w-1/2" />
-                </div>
-              ))}
-            </div>
-          ) : sheets.length === 0 ? (
-            <div className="text-center py-16 text-gray-400">
-              <p className="text-lg mb-1">No saved team sheets</p>
-              <p className="text-sm">Generate teams and save them to see them here</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {sheets.map((sheet) => {
-                const expanded = expandedSheet === sheet.id;
-                const teamA = parseTeamIds(sheet.teamAIds);
-                const teamB = parseTeamIds(sheet.teamBIds);
-                return (
-                  <div
-                    key={sheet.id}
-                    className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden"
-                  >
-                    <button
-                      onClick={() => setExpandedSheet(expanded ? null : sheet.id)}
-                      className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50"
-                    >
-                      <div>
-                        <div className="font-semibold text-gray-800">{sheet.name}</div>
-                        <div className="text-sm text-gray-500">
-                          {new Date(sheet.date).toLocaleDateString("en-US", {
-                            year: "numeric",
-                            month: "short",
-                            day: "numeric",
-                          })}
-                        </div>
-                      </div>
-                      <span className="text-gray-400">{expanded ? "−" : "+"}</span>
-                    </button>
-                    {expanded && (
-                      <div className="px-4 pb-4">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3">
-                          <div>
-                            <div className="font-bold text-blue-700 mb-2">{sheet.teamAName}</div>
-                            {teamA.map((p, i) => (
-                              <div key={i} className="flex items-center gap-2 text-sm py-0.5">
-                                <span className="text-gray-700">{p.name}</span>
-                                {getSkillBadge(p.skillTier)}
-                              </div>
-                            ))}
-                          </div>
-                          <div>
-                            <div className="font-bold text-red-700 mb-2">{sheet.teamBName}</div>
-                            {teamB.map((p, i) => (
-                              <div key={i} className="flex items-center gap-2 text-sm py-0.5">
-                                <span className="text-gray-700">{p.name}</span>
-                                {getSkillBadge(p.skillTier)}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                        {sheet.notes && (
-                          <div className="text-sm text-gray-500 mb-3">{sheet.notes}</div>
-                        )}
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => {
-                              const text = `${sheet.teamAName}\n${teamA.map((p) => `  ${p.name} [${p.skillTier}]`).join("\n")}\n\n${sheet.teamBName}\n${teamB.map((p) => `  ${p.name} [${p.skillTier}]`).join("\n")}\n\n${sheet.notes}`;
-                              if (navigator.share) {
-                                navigator.share({ title: sheet.name, text }).catch(() => {});
-                              } else {
-                                window.open(
-                                  `https://wa.me/?text=${encodeURIComponent(text)}`,
-                                  "_blank"
-                                );
-                              }
-                            }}
-                            className="text-sm px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                          >
-                            Share
-                          </button>
-                          <button
-                            onClick={() => deleteSheet(sheet.id)}
-                            className="text-sm px-3 py-1.5 bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
         </div>
       )}
     </div>
