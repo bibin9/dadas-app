@@ -46,10 +46,11 @@ export default function DashboardPage() {
 
   useEffect(() => {
     setData(null);
+    setBalanceFilter("all");
     fetch(`/api/dashboard?profile=${profile}`).then((r) => r.json()).then(setData);
   }, [profile]);
 
-  if (!data) return <div className="text-gray-700 font-medium p-4">Loading...</div>;
+  if (!data || data.profile !== profile) return <div className="text-gray-700 font-medium p-4">Loading...</div>;
 
   const { balances, totals } = data;
 

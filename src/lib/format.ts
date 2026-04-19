@@ -1,5 +1,5 @@
-export function formatAED(amount: number): string {
-  return `AED ${amount.toFixed(2)}`;
+export function formatAED(amount: number | undefined | null): string {
+  return `AED ${(amount ?? 0).toFixed(2)}`;
 }
 
 export function formatDate(date: Date | string): string {
