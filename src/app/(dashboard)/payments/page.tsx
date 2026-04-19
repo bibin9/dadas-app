@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { formatAED, formatDate } from "@/lib/format";
+import { useProfile } from "@/lib/profile-context";
 
 interface Member { id: string; name: string }
 interface Event { id: string; name: string; date: string; type: string }
@@ -34,12 +35,15 @@ export default function PaymentsPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [selectMode, setSelectMode] = useState(false);
 
+  const { profile } = useProfile();
+  const isBigTicket = profile === "bigticket";
+
   useEffect(() => {
     loadAll();
-  }, []);
+  }, [profile]);
 
   function loadAll() {
-    fetch("/api/payments/data").then((r) => r.json()).then((data) => {
+    fetch(`/api/payments/data?profile=${profile}`).then((r) => r.json()).then((data) => {
       setPayments(data.payments);
       setMembers(data.members);
       setEvents(data.events);
@@ -71,6 +75,7 @@ export default function PaymentsPage() {
       const payload = {
         memberId, amount: parseFloat(amount), method, reference, notes, date,
         eventId: eventId || null,
+        category: isBigTicket ? "bigticket" : "dadas",
       };
 
       if (editingId) {
@@ -155,7 +160,9 @@ export default function PaymentsPage() {
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Payments</h1>
+        <h1 className="text-2xl font-bold text-gray-900">
+          {isBigTicket ? "Big Ticket Payments" : "Payments"}
+        </h1>
         <div className="flex gap-2">
           {selectMode ? (
             <>
@@ -207,26 +214,28 @@ export default function PaymentsPage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 text-gray-900" required />
               </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className={`grid grid-cols-1 ${isBigTicket ? "sm:grid-cols-2" : "sm:grid-cols-3"} gap-3`}>
               <div>
                 <label className="block text-sm font-semibold text-gray-800 mb-1">Payment Type</label>
                 <select value={method} onChange={(e) => setMethod(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 text-gray-900 font-medium">
                   <option value="cash">Cash</option>
                   <option value="bank_transfer">Bank Transfer</option>
-                  <option value="company_contribution">To Company Contribution</option>
+                  {!isBigTicket && <option value="company_contribution">To Company Contribution</option>}
                 </select>
               </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-800 mb-1">For Event (optional)</label>
-                <select value={eventId} onChange={(e) => setEventId(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 text-gray-900 font-medium">
-                  <option value="">General payment</option>
-                  {events.map((ev) => (
-                    <option key={ev.id} value={ev.id}>{ev.name} — {formatDate(ev.date)}</option>
-                  ))}
-                </select>
-              </div>
+              {!isBigTicket && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-800 mb-1">For Event (optional)</label>
+                  <select value={eventId} onChange={(e) => setEventId(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 text-gray-900 font-medium">
+                    <option value="">General payment</option>
+                    {events.map((ev) => (
+                      <option key={ev.id} value={ev.id}>{ev.name} — {formatDate(ev.date)}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-semibold text-gray-800 mb-1">Reference</label>
                 <input type="text" value={reference} onChange={(e) => setReference(e.target.value)}
@@ -262,15 +271,17 @@ export default function PaymentsPage() {
               {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
             </select>
           </div>
-          <div className="flex-1 min-w-0">
-            <label className="block text-xs font-semibold text-gray-700 mb-1">Event</label>
-            <select value={filterEvent} onChange={(e) => setFilterEvent(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 text-sm">
-              <option value="">All Events</option>
-              <option value="_general">General (no event)</option>
-              {events.map((ev) => <option key={ev.id} value={ev.id}>{ev.name} — {formatDate(ev.date)}</option>)}
-            </select>
-          </div>
+          {!isBigTicket && (
+            <div className="flex-1 min-w-0">
+              <label className="block text-xs font-semibold text-gray-700 mb-1">Event</label>
+              <select value={filterEvent} onChange={(e) => setFilterEvent(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 text-sm">
+                <option value="">All Events</option>
+                <option value="_general">General (no event)</option>
+                {events.map((ev) => <option key={ev.id} value={ev.id}>{ev.name} — {formatDate(ev.date)}</option>)}
+              </select>
+            </div>
+          )}
           <div>
             <label className="block text-xs font-semibold text-gray-700 mb-1">From</label>
             <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)}
@@ -353,7 +364,7 @@ export default function PaymentsPage() {
                 <th className="px-6 py-3 font-semibold">Member</th>
                 <th className="px-6 py-3 font-semibold text-right">Amount</th>
                 <th className="px-6 py-3 font-semibold">Type</th>
-                <th className="px-6 py-3 font-semibold">For Event</th>
+                {!isBigTicket && <th className="px-6 py-3 font-semibold">For Event</th>}
                 <th className="px-6 py-3 font-semibold">Reference</th>
                 <th className="px-6 py-3 font-semibold">Notes</th>
                 <th className="px-6 py-3 font-semibold text-right">Actions</th>
@@ -371,9 +382,11 @@ export default function PaymentsPage() {
                   <td className="px-6 py-3">
                     <span className={`text-xs px-2 py-1 rounded-full font-semibold ${methodColor(p.method)}`}>{methodLabel(p.method)}</span>
                   </td>
-                  <td className="px-6 py-3 text-sm text-gray-800">
-                    {p.event ? `${p.event.name} (${formatDate(p.event.date)})` : <span className="text-gray-500">-</span>}
-                  </td>
+                  {!isBigTicket && (
+                    <td className="px-6 py-3 text-sm text-gray-800">
+                      {p.event ? `${p.event.name} (${formatDate(p.event.date)})` : <span className="text-gray-500">-</span>}
+                    </td>
+                  )}
                   <td className="px-6 py-3 text-sm text-gray-800">{p.reference || <span className="text-gray-500">-</span>}</td>
                   <td className="px-6 py-3 text-sm text-gray-800">{p.notes || <span className="text-gray-500">-</span>}</td>
                   <td className="px-6 py-3 text-right space-x-2">
@@ -387,7 +400,7 @@ export default function PaymentsPage() {
                 </tr>
               ))}
               {payments.length === 0 && (
-                <tr><td colSpan={selectMode ? 9 : 8} className="px-6 py-8 text-center text-gray-600 font-medium">No payments recorded yet.</td></tr>
+                <tr><td colSpan={selectMode ? (isBigTicket ? 8 : 9) : (isBigTicket ? 7 : 8)} className="px-6 py-8 text-center text-gray-600 font-medium">No payments recorded yet.</td></tr>
               )}
             </tbody>
           </table>

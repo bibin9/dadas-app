@@ -75,6 +75,7 @@ const tables = [
     notes TEXT NOT NULL DEFAULT '',
     date TEXT NOT NULL,
     eventId TEXT,
+    category TEXT NOT NULL DEFAULT 'dadas',
     createdAt TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (memberId) REFERENCES Member(id) ON DELETE CASCADE,
     FOREIGN KEY (eventId) REFERENCES Event(id) ON DELETE SET NULL
@@ -158,6 +159,7 @@ for (const sql of tables) {
 const migrations = [
   `ALTER TABLE Settings ADD COLUMN defaultBigTicketShare REAL NOT NULL DEFAULT 50`,
   `ALTER TABLE Settings ADD COLUMN bigTicketGroupId TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE Payment ADD COLUMN category TEXT NOT NULL DEFAULT 'dadas'`,
 ];
 for (const sql of migrations) {
   try { await db.execute(sql); } catch { /* column already exists */ }

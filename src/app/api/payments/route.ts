@@ -16,7 +16,7 @@ export async function DELETE(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const { memberId, amount, method, reference, notes, date, eventId } = await req.json();
+  const { memberId, amount, method, reference, notes, date, eventId, category } = await req.json();
 
   const payment = await prisma.payment.create({
     data: {
@@ -27,6 +27,7 @@ export async function POST(req: NextRequest) {
       notes: notes || "",
       date: new Date(date),
       eventId: eventId || null,
+      category: category || "dadas",
     },
     include: { member: true, event: true },
   });

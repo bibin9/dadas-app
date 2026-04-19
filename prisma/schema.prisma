@@ -124,6 +124,7 @@ model Payment {
   notes     String   @default("")
   date      DateTime
   eventId   String?  // optional link to an event
+  category  String   @default("dadas") // "dadas" or "bigticket"
   createdAt DateTime @default(now())
 
   member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)

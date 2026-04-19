@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { memberId, amount, method, reference, notes, date, eventId } = await req.json();
+  const { memberId, amount, method, reference, notes, date, eventId, category } = await req.json();
 
   const payment = await prisma.payment.update({
     where: { id },
@@ -15,6 +15,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       notes: notes || "",
       date: new Date(date),
       eventId: eventId || null,
+      category: category || "dadas",
     },
     include: { member: true, event: true },
   });

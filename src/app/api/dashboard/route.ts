@@ -21,7 +21,7 @@ async function handleDadas() {
     prisma.member.findMany({
       where: { active: true },
       orderBy: { name: "asc" },
-      include: { eventDues: true, payments: true },
+      include: { eventDues: true, payments: { where: { category: "dadas" } } },
     }),
     prisma.event.findMany(),
     prisma.settings.findUnique({ where: { id: "main" } }),
