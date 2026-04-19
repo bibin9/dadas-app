@@ -10,6 +10,7 @@ interface Member {
 
 interface GroupMember { id: string; member: Member }
 interface MemberGroup { id: string; name: string; members: GroupMember[] }
+interface EventTemplate { id: string; name: string; type: string; amount: number; amountType: string; groupId: string | null; notes: string }
 
 interface PurchaseSplit {
   id: string;
@@ -38,6 +39,7 @@ export default function PurchasesPage() {
   const [customAmounts, setCustomAmounts] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [groups, setGroups] = useState<MemberGroup[]>([]);
+  const [templates, setTemplates] = useState<EventTemplate[]>([]);
   const [defaultShare, setDefaultShare] = useState(50);
 
   const [loading, setLoading] = useState(true);
@@ -50,6 +52,7 @@ export default function PurchasesPage() {
     setMembers(data.members);
     setGroups(data.groups);
     setDefaultShare(data.defaultShare || 50);
+    setTemplates(data.templates || []);
     setLoading(false);
   }
   function loadPurchases() { loadAll(); }
@@ -61,6 +64,25 @@ export default function PurchasesPage() {
   }
 
   const totalAmount = selectedMembers.reduce((sum, id) => sum + getAmount(id), 0);
+
+  function createFromTemplate(tpl: EventTemplate) {
+    const group = tpl.groupId ? groups.find((g) => g.id === tpl.groupId) : null;
+    const groupMemberIds = group ? group.members.map((gm) => gm.member.id) : members.map((m) => m.id);
+
+    setShowForm(true);
+    setDescription(tpl.name);
+    setDate(new Date().toISOString().split("T")[0]);
+    setNotes(tpl.notes);
+    setSelectedMembers(groupMemberIds);
+    setCustomAmounts({});
+
+    // If template has a per-head amount, set it as custom for all members
+    if (tpl.amount > 0 && tpl.amountType === "perhead") {
+      const amounts: Record<string, string> = {};
+      groupMemberIds.forEach((id) => { amounts[id] = String(tpl.amount); });
+      setCustomAmounts(amounts);
+    }
+  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault(); if (submitting) return; setSubmitting(true);
@@ -100,15 +122,39 @@ export default function PurchasesPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold text-gray-900">Big Ticket Purchases</h1>
         <button
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => { setShowForm(!showForm); if (showForm) { setDescription(""); setNotes(""); setSelectedMembers([]); setCustomAmounts({}); } }}
           className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 font-medium text-sm"
         >
           {showForm ? "Cancel" : "New Purchase"}
         </button>
       </div>
+
+      {/* Quick Templates */}
+      {!showForm && templates.length > 0 && (
+        <div className="mb-6">
+          <p className="text-sm font-semibold text-gray-600 mb-2">Quick Templates</p>
+          <div className="flex flex-wrap gap-2">
+            {templates.map((tpl) => (
+              <button
+                key={tpl.id}
+                onClick={() => createFromTemplate(tpl)}
+                className="flex items-center gap-2 bg-purple-50 border border-purple-200 text-purple-800 px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-purple-100 hover:border-purple-300 transition-colors"
+              >
+                <span>🎫</span>
+                <span>{tpl.name}</span>
+                {tpl.amount > 0 && (
+                  <span className="text-xs bg-purple-200 text-purple-900 px-1.5 py-0.5 rounded-full">
+                    {tpl.amountType === "perhead" ? `${formatAED(tpl.amount)}/head` : formatAED(tpl.amount)}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {showForm && (
         <div className="bg-white rounded-xl shadow-sm border p-4 md:p-6 mb-6">
@@ -156,7 +202,6 @@ export default function PurchasesPage() {
               <div className="space-y-1.5">
                 {members.map((m) => {
                   const isSelected = selectedMembers.includes(m.id);
-                  const amount = getAmount(m.id);
                   const isCustom = customAmounts[m.id] !== undefined && customAmounts[m.id] !== "";
                   return (
                     <div key={m.id} className={`flex items-center gap-3 rounded-lg px-3 py-2 border transition-colors ${

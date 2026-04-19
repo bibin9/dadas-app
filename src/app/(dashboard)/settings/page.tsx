@@ -187,6 +187,7 @@ export default function SettingsPage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900">
                   <option value="event">Event (split cost)</option>
                   <option value="match">Match (per-head fee)</option>
+                  <option value="purchase">Purchase (Big Ticket)</option>
                 </select>
               </div>
             </div>
@@ -238,8 +239,8 @@ export default function SettingsPage() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-semibold text-gray-900">{tpl.name}</span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${tpl.type === "match" ? "bg-blue-100 text-blue-800" : "bg-emerald-100 text-emerald-800"}`}>
-                      {tpl.type === "match" ? "Match" : "Event"}
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${tpl.type === "match" ? "bg-blue-100 text-blue-800" : tpl.type === "purchase" ? "bg-purple-100 text-purple-800" : "bg-emerald-100 text-emerald-800"}`}>
+                      {tpl.type === "match" ? "Match" : tpl.type === "purchase" ? "Purchase" : "Event"}
                     </span>
                   </div>
                   <div className="text-sm text-gray-700 mt-0.5">
