@@ -1,7 +1,16 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const profile = request.nextUrl.searchParams.get("profile") || "dadas";
+
+  if (profile === "bigticket") {
+    return handleBigTicket();
+  }
+  return handleDadas();
+}
+
+async function handleDadas() {
   const [events, members, settings, companyIncomes, eventExpenses] = await Promise.all([
     prisma.event.findMany({
       orderBy: { date: "desc" },
@@ -10,7 +19,7 @@ export async function GET() {
     prisma.member.findMany({
       where: { active: true },
       orderBy: { name: "asc" },
-      include: { eventDues: true, purchaseSplits: true, payments: true },
+      include: { eventDues: true, payments: true },
     }),
     prisma.settings.findUnique({ where: { id: "main" } }),
     prisma.companyIncome.findMany({ orderBy: { date: "desc" } }),
@@ -75,10 +84,46 @@ export async function GET() {
   const outstandingReport = members.map((member) => {
     let totalDue = 0, totalPaid = 0;
     for (const d of member.eventDues) totalDue += d.amount;
-    for (const s of member.purchaseSplits) totalDue += s.amount;
     for (const p of member.payments) totalPaid += p.amount;
     return { id: member.id, name: member.name, phone: member.phone, totalDue, totalPaid, balance: totalDue - totalPaid };
   }).filter((m) => m.balance > 0).sort((a, b) => b.balance - a.balance);
 
-  return NextResponse.json({ eventReports, outstandingReport, groupName: settings?.groupName || "Company" });
+  return NextResponse.json({ profile: "dadas", eventReports, outstandingReport, groupName: settings?.groupName || "Company" });
+}
+
+async function handleBigTicket() {
+  const [members, purchases, settings] = await Promise.all([
+    prisma.member.findMany({
+      where: { active: true },
+      orderBy: { name: "asc" },
+      include: { purchaseSplits: { include: { purchase: true } } },
+    }),
+    prisma.purchase.findMany({ orderBy: { date: "desc" } }),
+    prisma.settings.findUnique({ where: { id: "main" } }),
+  ]);
+
+  // Purchase reports
+  const purchaseReports = purchases.map((purchase) => {
+    return {
+      id: purchase.id,
+      name: purchase.description,
+      date: purchase.date,
+      totalAmount: purchase.totalAmount,
+    };
+  });
+
+  // Outstanding report for purchases
+  const outstandingReport = members.map((member) => {
+    let totalDue = 0, totalPaid = 0;
+    for (const s of member.purchaseSplits) {
+      if (s.paid) {
+        totalPaid += s.amount;
+      } else {
+        totalDue += s.amount;
+      }
+    }
+    return { id: member.id, name: member.name, phone: member.phone, totalDue, totalPaid, balance: totalDue };
+  }).filter((m) => m.balance > 0).sort((a, b) => b.balance - a.balance);
+
+  return NextResponse.json({ profile: "bigticket", purchaseReports, outstandingReport, groupName: settings?.groupName || "Company" });
 }

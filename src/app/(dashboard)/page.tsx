@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatAED } from "@/lib/format";
+import { useProfile } from "@/lib/profile-context";
 
 interface MemberBalance {
   id: string;
@@ -13,27 +14,40 @@ interface MemberBalance {
   balance: number;
 }
 
+interface DadasTotals {
+  totalReceived: number;
+  totalCosts: number;
+  totalIncome: number;
+  totalOutstanding: number;
+  groupFund: number;
+  memberCount: number;
+  groupName: string;
+}
+
+interface BigTicketTotals {
+  totalPurchases: number;
+  totalOutstanding: number;
+  totalCollected: number;
+  memberCount: number;
+  groupName: string;
+}
+
 interface DashboardData {
+  profile: string;
   balances: MemberBalance[];
-  totals: {
-    totalReceived: number;
-    totalCosts: number;
-    totalIncome: number;
-    totalOutstanding: number;
-    groupFund: number;
-    memberCount: number;
-    groupName: string;
-  };
+  totals: DadasTotals & BigTicketTotals;
 }
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [balanceFilter, setBalanceFilter] = useState<"all" | "dues" | "settled" | "credits">("all");
   const router = useRouter();
+  const { profile } = useProfile();
 
   useEffect(() => {
-    fetch("/api/dashboard").then((r) => r.json()).then(setData);
-  }, []);
+    setData(null);
+    fetch(`/api/dashboard?profile=${profile}`).then((r) => r.json()).then(setData);
+  }, [profile]);
 
   if (!data) return <div className="text-gray-700 font-medium p-4">Loading...</div>;
 
@@ -41,7 +55,7 @@ export default function DashboardPage() {
 
   const owingMembers = balances.filter((b) => b.balance > 0);
   const creditMembers = balances.filter((b) => b.balance < 0);
-  const settledMembers = balances.filter((b) => b.balance === 0);
+  const settledMembers = balances.filter((b) => b.balance === 0 && (b.totalDue > 0 || b.totalPaid > 0));
 
   const filteredBalances = balanceFilter === "dues" ? owingMembers
     : balanceFilter === "credits" ? creditMembers
@@ -55,35 +69,50 @@ export default function DashboardPage() {
     try { await navigator.clipboard.writeText(text); alert("Copied to clipboard!"); } catch { window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank"); }
   }
 
+  const isDadas = profile === "dadas";
+
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Dashboard</h1>
+      <h1 className="text-2xl font-bold text-gray-900 mb-6">
+        {isDadas ? "Dashboard" : "Big Ticket Dashboard"}
+      </h1>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4 mb-6 md:mb-8">
-        <Card label="Total Received" value={formatAED(totals.totalReceived)} color="emerald" onClick={() => router.push("/payments")} />
-        <Card label="Total Costs" value={formatAED(totals.totalCosts)} color="red" onClick={() => router.push("/expenses")} />
-        <Card label="Total Income" value={formatAED(totals.totalIncome)} color="purple" onClick={() => router.push("/income")} />
-        <Card label="Outstanding" value={formatAED(totals.totalOutstanding)} color={totals.totalOutstanding > 0 ? "amber" : "emerald"} onClick={() => router.push("/reports?tab=outstanding")} />
-        <Card
-          label={`${totals.groupName} Fund`}
-          value={formatAED(totals.groupFund)}
-          color={totals.groupFund >= 0 ? "emerald" : "red"}
-          subtitle={totals.groupFund >= 0 ? "Surplus" : "Deficit"}
-          onClick={() => router.push("/reports?tab=events")}
-        />
-      </div>
+      {isDadas ? (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4 mb-6 md:mb-8">
+          <Card label="Total Received" value={formatAED(totals.totalReceived)} color="emerald" onClick={() => router.push("/payments")} />
+          <Card label="Total Costs" value={formatAED(totals.totalCosts)} color="red" onClick={() => router.push("/expenses")} />
+          <Card label="Total Income" value={formatAED(totals.totalIncome)} color="purple" onClick={() => router.push("/income")} />
+          <Card label="Outstanding" value={formatAED(totals.totalOutstanding)} color={totals.totalOutstanding > 0 ? "amber" : "emerald"} onClick={() => router.push("/reports?tab=outstanding")} />
+          <Card
+            label={`${totals.groupName} Fund`}
+            value={formatAED(totals.groupFund)}
+            color={totals.groupFund >= 0 ? "emerald" : "red"}
+            subtitle={totals.groupFund >= 0 ? "Surplus" : "Deficit"}
+            onClick={() => router.push("/reports?tab=events")}
+          />
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 mb-6 md:mb-8">
+          <Card label="Total Purchases" value={formatAED(totals.totalPurchases)} color="purple" onClick={() => router.push("/purchases")} />
+          <Card label="Collected" value={formatAED(totals.totalCollected)} color="emerald" />
+          <Card label="Outstanding" value={formatAED(totals.totalOutstanding)} color={totals.totalOutstanding > 0 ? "amber" : "emerald"} onClick={() => router.push("/reports?tab=outstanding")} />
+        </div>
+      )}
 
       {/* Outstanding Members */}
       {owingMembers.length > 0 && (
         <div className="bg-white rounded-xl shadow-sm border border-red-200 mb-6 md:mb-8">
           <div className="px-4 md:px-6 py-3 md:py-4 border-b border-red-100 bg-red-50 rounded-t-xl flex items-center justify-between">
             <div className="cursor-pointer" onClick={() => router.push("/reports?tab=outstanding")}>
-              <h2 className="font-bold text-red-700">Outstanding Dues</h2>
+              <h2 className="font-bold text-red-700">
+                {isDadas ? "Outstanding Dues" : "Outstanding Purchase Dues"}
+              </h2>
               <p className="text-sm text-red-600">{owingMembers.length} member{owingMembers.length !== 1 ? "s" : ""} owe {formatAED(totals.totalOutstanding)}</p>
             </div>
             <button onClick={() => {
-              let msg = `*Outstanding Dues Report*\n`;
+              const title = isDadas ? "Outstanding Dues Report" : "Outstanding Purchase Dues";
+              let msg = `*${title}*\n`;
               msg += `Total: ${formatAED(totals.totalOutstanding)}\n\n`;
               owingMembers.sort((a, b) => b.balance - a.balance).forEach((m, i) => { msg += `${i + 1}. ${m.name} - ${formatAED(m.balance)}\n`; });
               msg += `\n_Please clear your dues at the earliest._`;
@@ -111,7 +140,9 @@ export default function DashboardPage() {
         <div className="px-4 md:px-6 py-3 md:py-4 border-b">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
-              <h2 className="font-semibold text-gray-900">All Member Balances</h2>
+              <h2 className="font-semibold text-gray-900">
+                {isDadas ? "All Member Balances" : "Purchase Split Balances"}
+              </h2>
               <p className="text-sm text-gray-700">{totals.memberCount} active members</p>
             </div>
             <div className="flex gap-1 bg-gray-100 rounded-lg p-1">

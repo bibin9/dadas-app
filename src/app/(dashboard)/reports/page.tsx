@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { formatAED, formatDate } from "@/lib/format";
+import { useProfile } from "@/lib/profile-context";
 
 interface IncomeItem { description: string; amount: number; category: string }
 interface ExpenseItem { description: string; amount: number; category: string }
@@ -20,6 +21,9 @@ interface EventReport {
 interface OutstandingMember {
   id: string; name: string; phone: string; totalDue: number; totalPaid: number; balance: number;
 }
+interface PurchaseReport {
+  id: string; name: string; date: string; totalAmount: number;
+}
 
 export default function ReportsPage() {
   return <Suspense fallback={<div className="text-gray-700 font-medium p-4">Loading...</div>}><ReportsContent /></Suspense>;
@@ -27,20 +31,30 @@ export default function ReportsPage() {
 
 function ReportsContent() {
   const searchParams = useSearchParams();
+  const { profile } = useProfile();
   const [eventReports, setEventReports] = useState<EventReport[]>([]);
   const [outstandingReport, setOutstandingReport] = useState<OutstandingMember[]>([]);
+  const [purchaseReports, setPurchaseReports] = useState<PurchaseReport[]>([]);
   const [groupName, setGroupName] = useState("Company");
   const initialTab = searchParams.get("tab") === "outstanding" ? "outstanding" : "events";
   const [tab, setTab] = useState<"events" | "outstanding">(initialTab);
   const [expandedEvent, setExpandedEvent] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/reports").then((r) => r.json()).then((data) => {
-      setEventReports(data.eventReports);
-      setOutstandingReport(data.outstandingReport);
+    setEventReports([]);
+    setOutstandingReport([]);
+    setPurchaseReports([]);
+    fetch(`/api/reports?profile=${profile}`).then((r) => r.json()).then((data) => {
+      setEventReports(data.eventReports || []);
+      setOutstandingReport(data.outstandingReport || []);
+      setPurchaseReports(data.purchaseReports || []);
       setGroupName(data.groupName);
+      // For bigticket, default to outstanding tab
+      if (profile === "bigticket") {
+        setTab("outstanding");
+      }
     });
-  }, []);
+  }, [profile]);
 
   async function shareText(text: string) {
     if (navigator.share) {
@@ -87,7 +101,8 @@ function ReportsContent() {
   // WhatsApp share for outstanding balances
   function shareOutstandingWhatsApp() {
     const totalOutstanding = outstandingReport.reduce((s, m) => s + m.balance, 0);
-    let msg = `*Outstanding Balances Report*\n`;
+    const title = profile === "dadas" ? "Outstanding Balances Report" : "Outstanding Purchase Dues";
+    let msg = `*${title}*\n`;
     msg += `Total Outstanding: ${formatAED(totalOutstanding)}\n`;
     msg += `Members with dues: ${outstandingReport.length}\n\n`;
     outstandingReport.forEach((m, i) => {
@@ -98,28 +113,33 @@ function ReportsContent() {
   }
 
   const totalOutstanding = outstandingReport.reduce((s, m) => s + m.balance, 0);
+  const isDadas = profile === "dadas";
 
   // Events with financial activity (income or expenses)
   const eventsWithPL = eventReports.filter((ev) => ev.totalIncome > 0 || ev.totalExpenses > 0 || ev.totalCost > 0);
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Reports</h1>
+      <h1 className="text-2xl font-bold text-gray-900 mb-6">
+        {isDadas ? "Reports" : "Big Ticket Reports"}
+      </h1>
 
-      {/* Tab Switcher */}
-      <div className="flex gap-1 bg-gray-100 rounded-lg p-1 mb-6">
-        <button onClick={() => setTab("events")}
-          className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition ${tab === "events" ? "bg-white text-gray-900 shadow-sm" : "text-gray-600"}`}>
-          Event Collection & P&L
-        </button>
-        <button onClick={() => setTab("outstanding")}
-          className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition ${tab === "outstanding" ? "bg-white text-gray-900 shadow-sm" : "text-gray-600"}`}>
-          Outstanding Balances
-        </button>
-      </div>
+      {/* Tab Switcher - only show for DADAS */}
+      {isDadas && (
+        <div className="flex gap-1 bg-gray-100 rounded-lg p-1 mb-6">
+          <button onClick={() => setTab("events")}
+            className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition ${tab === "events" ? "bg-white text-gray-900 shadow-sm" : "text-gray-600"}`}>
+            Event Collection & P&L
+          </button>
+          <button onClick={() => setTab("outstanding")}
+            className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition ${tab === "outstanding" ? "bg-white text-gray-900 shadow-sm" : "text-gray-600"}`}>
+            Outstanding Balances
+          </button>
+        </div>
+      )}
 
-      {/* ========== EVENT COLLECTION & P&L REPORT ========== */}
-      {tab === "events" && (
+      {/* ========== EVENT COLLECTION & P&L REPORT (DADAS only) ========== */}
+      {isDadas && tab === "events" && (
         <div className="space-y-4">
           {eventReports.map((ev) => {
             const isExpanded = expandedEvent === ev.id;
@@ -268,7 +288,7 @@ function ReportsContent() {
       )}
 
       {/* ========== OUTSTANDING BALANCES REPORT ========== */}
-      {tab === "outstanding" && (
+      {(isDadas ? tab === "outstanding" : true) && (
         <div>
           {/* Summary */}
           <div className="grid grid-cols-2 gap-3 mb-6">
@@ -285,7 +305,7 @@ function ReportsContent() {
           {/* Share Button */}
           {outstandingReport.length > 0 && (
             <button onClick={shareOutstandingWhatsApp} className="bg-green-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-green-700 mb-4 w-full sm:w-auto">
-              Share Outstanding Report via WhatsApp
+              {isDadas ? "Share Outstanding Report via WhatsApp" : "Share Purchase Dues via WhatsApp"}
             </button>
           )}
 
@@ -309,7 +329,9 @@ function ReportsContent() {
                 </div>
               ))}
               {outstandingReport.length === 0 && (
-                <div className="px-4 py-8 text-center text-gray-600 font-medium">No outstanding balances. All settled!</div>
+                <div className="px-4 py-8 text-center text-gray-600 font-medium">
+                  {isDadas ? "No outstanding balances. All settled!" : "No outstanding purchase dues. All settled!"}
+                </div>
               )}
             </div>
 
@@ -337,7 +359,9 @@ function ReportsContent() {
                   </tr>
                 ))}
                 {outstandingReport.length === 0 && (
-                  <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-600 font-medium">No outstanding balances. All settled!</td></tr>
+                  <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-600 font-medium">
+                    {isDadas ? "No outstanding balances. All settled!" : "No outstanding purchase dues. All settled!"}
+                  </td></tr>
                 )}
               </tbody>
               {outstandingReport.length > 0 && (

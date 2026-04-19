@@ -12,6 +12,7 @@ export default function SettingsPage() {
   const [accountNumber, setAccountNumber] = useState("");
   const [swiftCode, setSwiftCode] = useState("");
   const [defaultMatchFee, setDefaultMatchFee] = useState("20");
+  const [defaultBigTicketShare, setDefaultBigTicketShare] = useState("50");
   const [groupName, setGroupName] = useState("Company");
   const [autoDeleteDays, setAutoDeleteDays] = useState("0");
   const [saved, setSaved] = useState(false);
@@ -48,6 +49,7 @@ export default function SettingsPage() {
     setBankName(s.bankName); setAccountName(s.accountName); setIban(s.iban);
     setAccountNumber(s.accountNumber); setSwiftCode(s.swiftCode);
     setDefaultMatchFee(String(s.defaultMatchFee || 20));
+    setDefaultBigTicketShare(String(s.defaultBigTicketShare || 50));
     setGroupName(s.groupName || "Company");
     setAutoDeleteDays(String(s.autoDeleteDays || 0));
     setTemplates(data.templates);
@@ -64,7 +66,9 @@ export default function SettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           bankName, accountName, iban, accountNumber, swiftCode,
-          defaultMatchFee: parseFloat(defaultMatchFee), groupName,
+          defaultMatchFee: parseFloat(defaultMatchFee),
+          defaultBigTicketShare: parseFloat(defaultBigTicketShare) || 50,
+          groupName,
           autoDeleteDays: parseInt(autoDeleteDays) || 0,
         }),
       });
@@ -276,6 +280,13 @@ export default function SettingsPage() {
               <input type="number" step="0.01" value={defaultMatchFee} onChange={(e) => setDefaultMatchFee(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-gray-900"
                 placeholder="20" />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-800 mb-1">Default Big Ticket Share (AED)</label>
+              <input type="number" step="0.01" value={defaultBigTicketShare} onChange={(e) => setDefaultBigTicketShare(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-gray-900"
+                placeholder="50" />
+              <p className="text-xs text-gray-600 mt-1">Per member share for Big Ticket purchases</p>
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-800 mb-1">Auto-Delete Settled Matches</label>

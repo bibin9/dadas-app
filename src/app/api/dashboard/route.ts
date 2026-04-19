@@ -1,21 +1,29 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const profile = request.nextUrl.searchParams.get("profile") || "dadas";
+
   // Clean up orphaned payments in background (non-blocking)
   prisma.payment.deleteMany({ where: { eventId: { not: null }, event: null } }).catch(() => {});
 
   // Clean up duplicate payments (same member + same event, keep only the latest)
   cleanupDuplicatePayments().catch(() => {});
 
-  const [members, events, purchases, settings, companyIncomes, allExpenses] = await Promise.all([
+  if (profile === "bigticket") {
+    return handleBigTicket();
+  }
+  return handleDadas();
+}
+
+async function handleDadas() {
+  const [members, events, settings, companyIncomes, allExpenses] = await Promise.all([
     prisma.member.findMany({
       where: { active: true },
       orderBy: { name: "asc" },
-      include: { eventDues: true, purchaseSplits: true, payments: true },
+      include: { eventDues: true, payments: true },
     }),
     prisma.event.findMany(),
-    prisma.purchase.findMany(),
     prisma.settings.findUnique({ where: { id: "main" } }),
     prisma.companyIncome.findMany(),
     prisma.eventExpense.findMany(),
@@ -29,7 +37,6 @@ export async function GET() {
   const balances = members.map((member) => {
     let totalDue = 0;
     for (const d of member.eventDues) totalDue += d.amount;
-    for (const s of member.purchaseSplits) totalDue += s.amount;
     let totalPaid = 0;
     for (const p of member.payments) totalPaid += p.amount;
 
@@ -37,17 +44,54 @@ export async function GET() {
   });
 
   let totalReceived = 0, totalOutstanding = 0;
-  let totalEventCosts = 0, totalPurchaseCosts = 0;
+  let totalEventCosts = 0;
   for (const b of balances) { totalReceived += b.totalPaid; totalOutstanding += Math.max(0, b.balance); }
   for (const e of events) totalEventCosts += e.totalCost;
-  for (const p of purchases) totalPurchaseCosts += p.totalAmount;
 
-  const totalCosts = totalEventCosts + totalPurchaseCosts + totalEventExpenses;
+  const totalCosts = totalEventCosts + totalEventExpenses;
   const groupFund = totalReceived + totalCompanyIncome - totalCosts;
 
   return NextResponse.json({
+    profile: "dadas",
     balances,
     totals: { totalReceived, totalCosts, totalIncome: totalCompanyIncome, totalOutstanding, groupFund, memberCount: members.length, groupName: settings?.groupName || "Company" },
+  });
+}
+
+async function handleBigTicket() {
+  const [members, purchases, settings] = await Promise.all([
+    prisma.member.findMany({
+      where: { active: true },
+      orderBy: { name: "asc" },
+      include: { purchaseSplits: true },
+    }),
+    prisma.purchase.findMany(),
+    prisma.settings.findUnique({ where: { id: "main" } }),
+  ]);
+
+  let totalPurchaseValue = 0;
+  for (const p of purchases) totalPurchaseValue += p.totalAmount;
+
+  const balances = members.map((member) => {
+    let totalDue = 0;
+    let totalPaid = 0;
+    for (const s of member.purchaseSplits) {
+      if (s.paid) {
+        totalPaid += s.amount;
+      } else {
+        totalDue += s.amount;
+      }
+    }
+    return { id: member.id, name: member.name, phone: member.phone, totalDue, totalPaid, balance: totalDue };
+  });
+
+  let totalOutstanding = 0, totalCollected = 0;
+  for (const b of balances) { totalOutstanding += b.totalDue; totalCollected += b.totalPaid; }
+
+  return NextResponse.json({
+    profile: "bigticket",
+    balances,
+    totals: { totalPurchases: totalPurchaseValue, totalOutstanding, totalCollected, memberCount: members.length, groupName: settings?.groupName || "Company" },
   });
 }
 

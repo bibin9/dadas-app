@@ -143,6 +143,7 @@ const tables = [
     accountNumber TEXT NOT NULL DEFAULT '',
     swiftCode TEXT NOT NULL DEFAULT '',
     defaultMatchFee REAL NOT NULL DEFAULT 20,
+    defaultBigTicketShare REAL NOT NULL DEFAULT 50,
     groupName TEXT NOT NULL DEFAULT 'Company',
     autoDeleteDays INTEGER NOT NULL DEFAULT 0
   )`,
@@ -151,6 +152,15 @@ const tables = [
 for (const sql of tables) {
   await db.execute(sql);
 }
+
+// Add new columns to existing tables (safe to run multiple times)
+const migrations = [
+  `ALTER TABLE Settings ADD COLUMN defaultBigTicketShare REAL NOT NULL DEFAULT 50`,
+];
+for (const sql of migrations) {
+  try { await db.execute(sql); } catch { /* column already exists */ }
+}
+
 console.log("Tables created");
 
 // Seed admin user

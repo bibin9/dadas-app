@@ -186,7 +186,8 @@ model Settings {
   iban            String @default("")
   accountNumber   String @default("")
   swiftCode       String @default("")
-  defaultMatchFee Float  @default(20)
-  groupName       String @default("Company")
-  autoDeleteDays  Int    @default(0) // 0 = disabled, >0 = auto-delete fully-paid matches after N days
+  defaultMatchFee       Float  @default(20)
+  defaultBigTicketShare Float  @default(50)
+  groupName             String @default("Company")
+  autoDeleteDays        Int    @default(0) // 0 = disabled, >0 = auto-delete fully-paid matches after N days
 }

@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
+import { ProfileProvider, useProfile, Profile } from "@/lib/profile-context";
 
-const navItems = [
+const dadasNavItems = [
   { href: "/", label: "Dashboard", icon: "📊" },
   { href: "/members", label: "Members", icon: "👥" },
   { href: "/events", label: "Events", icon: "📅" },
   { href: "/team-balancer", label: "Teams", icon: "⚽" },
-  { href: "/purchases", label: "Purchases", icon: "🛒" },
   { href: "/income", label: "Income", icon: "🏆" },
   { href: "/expenses", label: "Expenses", icon: "💸" },
   { href: "/payments", label: "Payments", icon: "💰" },
@@ -17,10 +17,52 @@ const navItems = [
   { href: "/settings", label: "Settings", icon: "⚙️" },
 ];
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+const bigticketNavItems = [
+  { href: "/", label: "Dashboard", icon: "📊" },
+  { href: "/members", label: "Members", icon: "👥" },
+  { href: "/purchases", label: "Purchases", icon: "🛒" },
+  { href: "/payments", label: "Payments", icon: "💰" },
+  { href: "/reports", label: "Reports", icon: "📋" },
+  { href: "/settings", label: "Settings", icon: "⚙️" },
+];
+
+function ProfileSwitcher({ compact }: { compact?: boolean }) {
+  const { profile, setProfile } = useProfile();
+  return (
+    <div className={`flex ${compact ? "gap-1" : "gap-1 p-1"} bg-white/10 rounded-lg`}>
+      <button
+        onClick={() => setProfile("dadas")}
+        className={`flex items-center gap-1.5 px-3 ${compact ? "py-1.5 text-xs" : "py-2 text-sm"} rounded-md font-semibold transition-all ${
+          profile === "dadas"
+            ? "bg-white text-[#1a2744] shadow-sm"
+            : "text-blue-200 hover:text-white hover:bg-white/10"
+        }`}
+      >
+        <span>⚽</span>
+        <span>{compact ? "DADAS" : "DADAS FC"}</span>
+      </button>
+      <button
+        onClick={() => setProfile("bigticket")}
+        className={`flex items-center gap-1.5 px-3 ${compact ? "py-1.5 text-xs" : "py-2 text-sm"} rounded-md font-semibold transition-all ${
+          profile === "bigticket"
+            ? "bg-white text-[#1a2744] shadow-sm"
+            : "text-blue-200 hover:text-white hover:bg-white/10"
+        }`}
+      >
+        <span>🎫</span>
+        <span>{compact ? "Big Ticket" : "Big Ticket"}</span>
+      </button>
+    </div>
+  );
+}
+
+function LayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
+  const { profile } = useProfile();
+
+  const navItems = profile === "dadas" ? dadasNavItems : bigticketNavItems;
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -31,24 +73,29 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-gray-50">
       {/* Mobile Header */}
-      <header className="md:hidden bg-[#1a2744] text-white flex items-center justify-between px-4 py-3 sticky top-0 z-50">
-        <div className="flex items-center gap-3">
-          <img src="/logo.jpg" alt="Dadas FC" width={36} height={36} className="rounded-lg" />
-          <h1 className="text-base font-bold">Dadas FC</h1>
+      <header className="md:hidden bg-[#1a2744] text-white sticky top-0 z-50">
+        <div className="flex items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-3">
+            <img src="/logo.jpg" alt="Dadas FC" width={36} height={36} className="rounded-lg" />
+            <h1 className="text-base font-bold">Dadas FC</h1>
+          </div>
+          <button onClick={() => setMenuOpen(!menuOpen)} className="p-2 rounded-lg hover:bg-white/10">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {menuOpen
+                ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              }
+            </svg>
+          </button>
         </div>
-        <button onClick={() => setMenuOpen(!menuOpen)} className="p-2 rounded-lg hover:bg-white/10">
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            {menuOpen
-              ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            }
-          </svg>
-        </button>
+        <div className="px-4 pb-3">
+          <ProfileSwitcher compact />
+        </div>
       </header>
 
       {/* Mobile Menu Dropdown */}
       {menuOpen && (
-        <div className="md:hidden bg-[#1a2744] text-white px-4 pb-4 space-y-1 sticky top-[60px] z-50">
+        <div className="md:hidden bg-[#1a2744] text-white px-4 pb-4 space-y-1 sticky top-[108px] z-50">
           {navItems.map((item) => {
             const active = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
             return (
@@ -73,6 +120,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <p className="text-blue-300 text-xs">Together We Play</p>
           </div>
         </div>
+        <div className="px-4 pt-4 pb-2">
+          <ProfileSwitcher />
+        </div>
         <nav className="flex-1 px-4 space-y-1 pt-2">
           {navItems.map((item) => {
             const active = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
@@ -96,5 +146,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {children}
       </main>
     </div>
+  );
+}
+
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <ProfileProvider>
+      <LayoutInner>{children}</LayoutInner>
+    </ProfileProvider>
   );
 }

@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
 
 export async function GET() {
-  const [purchases, members, groups] = await Promise.all([
+  const [purchases, members, groups, settings] = await Promise.all([
     prisma.purchase.findMany({
       orderBy: { date: "desc" },
       include: { splits: { include: { member: true } } },
@@ -12,6 +12,7 @@ export async function GET() {
       include: { members: { include: { member: true } } },
       orderBy: { createdAt: "desc" },
     }),
+    prisma.settings.findUnique({ where: { id: "main" } }),
   ]);
-  return NextResponse.json({ purchases, members, groups });
+  return NextResponse.json({ purchases, members, groups, defaultShare: settings?.defaultBigTicketShare ?? 50 });
 }
