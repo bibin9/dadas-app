@@ -245,7 +245,7 @@ export default function TeamBalancerPage() {
     const now = new Date();
     const dateStr = now.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
 
-    const text = `⚽ *DADAS FC - Team Sheet*\n📅 ${dateStr}\n\n${colorA.emoji} *${colorA.name} Jersey* (${result.scoreA} pts)\n${result.teamA.map((p, i) => `${i + 1}. ${p.name}${p.isGuest ? " (Guest)" : ""} [${p.skillTier.charAt(0).toUpperCase() + p.skillTier.slice(1)}]`).join("\n")}\n\n${colorB.emoji} *${colorB.name} Jersey* (${result.scoreB} pts)\n${result.teamB.map((p, i) => `${i + 1}. ${p.name}${p.isGuest ? " (Guest)" : ""} [${p.skillTier.charAt(0).toUpperCase() + p.skillTier.slice(1)}]`).join("\n")}\n\n📊 Balance: ${result.difference === 0 ? "Perfectly Balanced!" : `${result.difference} pts difference`}\n👥 ${result.teamA.length} vs ${result.teamB.length} players`;
+    const text = `⚽ *DADAS FC - Team Sheet*\n📅 ${dateStr}\n\n${colorA.emoji} *${colorA.name} Jersey*\n${result.teamA.map((p, i) => `${i + 1}. ${p.name}${p.isGuest ? " (Guest)" : ""}`).join("\n")}\n\n${colorB.emoji} *${colorB.name} Jersey*\n${result.teamB.map((p, i) => `${i + 1}. ${p.name}${p.isGuest ? " (Guest)" : ""}`).join("\n")}\n\n👥 ${result.teamA.length} vs ${result.teamB.length} players`;
 
     if (navigator.share) {
       try {
