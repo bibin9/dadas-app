@@ -10,11 +10,27 @@ const SKILL_WEIGHTS: Record<string, number> = {
   starter: 1,
 };
 
+// New 4-category age system + backward-compatible old values
 const AGE_MODIFIERS: Record<string, number> = {
-  veteran: 0.5,
+  under30: 0.4,
+  age30to40: 0,
+  age40to50: -0.2,
+  over50: -0.4,
+  // Legacy values (mapped for backward compat)
+  youth: 0.4,
   senior: 0,
-  youth: -0.3,
+  veteran: -0.2,
 };
+
+// Normalize legacy age values
+function normalizeAge(age: string): string {
+  switch (age) {
+    case "youth": return "under30";
+    case "senior": return "age30to40";
+    case "veteran": return "age40to50";
+    default: return age;
+  }
+}
 
 interface PlayerEntry {
   id: string;
@@ -45,7 +61,7 @@ export async function POST(req: NextRequest) {
   const players: PlayerEntry[] = members.map((m) => {
     const skill = m.skill;
     const skillTier = skill?.skillTier ?? "silver";
-    const ageGroup = skill?.ageGroup ?? "senior";
+    const ageGroup = normalizeAge(skill?.ageGroup ?? "age30to40");
     const position = skill?.position ?? "any";
     return {
       id: m.id,
@@ -61,60 +77,61 @@ export async function POST(req: NextRequest) {
   // Add guest players
   if (guestPlayers && Array.isArray(guestPlayers)) {
     for (const g of guestPlayers) {
+      const ageGroup = normalizeAge(g.ageGroup || "age30to40");
+      const skillTier = g.skillTier || "silver";
       players.push({
         id: `guest-${Date.now()}-${Math.random().toString(36).slice(2)}`,
         name: g.name,
-        skillTier: g.skillTier || "silver",
-        ageGroup: g.ageGroup || "senior",
+        skillTier,
+        ageGroup,
         position: "any",
-        score: calculateScore(g.skillTier || "silver", g.ageGroup || "senior"),
+        score: calculateScore(skillTier, ageGroup),
         isGuest: true,
       });
     }
   }
 
-  // Shuffle players with the same score for randomization
+  // Shuffle for randomness, then stable-sort by score desc
+  // so equal-scored players randomize between runs
   for (let i = players.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    if (players[i].score === players[j].score) {
-      [players[i], players[j]] = [players[j], players[i]];
-    }
+    [players[i], players[j]] = [players[j], players[i]];
   }
-
-  // Sort by score descending
   players.sort((a, b) => b.score - a.score);
 
-  // Try to distribute goalkeepers evenly first
+  // Separate goalkeepers and non-goalkeepers
   const goalkeepers = players.filter((p) => p.position === "goalkeeper");
   const nonGoalkeepers = players.filter((p) => p.position !== "goalkeeper");
 
   const teamA: PlayerEntry[] = [];
   const teamB: PlayerEntry[] = [];
+  let scoreA = 0;
+  let scoreB = 0;
 
-  // Distribute goalkeepers first
-  goalkeepers.forEach((gk, i) => {
-    if (i % 2 === 0) teamA.push(gk);
-    else teamB.push(gk);
-  });
-
-  // Snake draft for remaining players
-  let pickIndex = 0;
-  for (const player of nonGoalkeepers) {
-    const cycle = Math.floor(pickIndex / 2);
-    const pos = pickIndex % 2;
-    // Snake: even cycle = A first, odd cycle = B first
-    if (cycle % 2 === 0) {
-      if (pos === 0) teamA.push(player);
-      else teamB.push(player);
+  // Helper: assign a player to the team that keeps BOTH size and score balanced
+  function assign(p: PlayerEntry) {
+    // Primary: keep team sizes equal (max diff of 1)
+    if (teamA.length < teamB.length) {
+      teamA.push(p); scoreA += p.score;
+    } else if (teamB.length < teamA.length) {
+      teamB.push(p); scoreB += p.score;
     } else {
-      if (pos === 0) teamB.push(player);
-      else teamA.push(player);
+      // Equal sizes — assign to the lower-scoring team
+      if (scoreA <= scoreB) {
+        teamA.push(p); scoreA += p.score;
+      } else {
+        teamB.push(p); scoreB += p.score;
+      }
     }
-    pickIndex++;
   }
 
-  const scoreA = teamA.reduce((sum, p) => sum + p.score, 0);
-  const scoreB = teamB.reduce((sum, p) => sum + p.score, 0);
+  // Distribute goalkeepers alternately (they go first so each team gets one if possible)
+  goalkeepers.forEach((gk) => assign(gk));
+
+  // Distribute the rest using size-first, then score-balance
+  for (const p of nonGoalkeepers) {
+    assign(p);
+  }
 
   return NextResponse.json({
     teamA,

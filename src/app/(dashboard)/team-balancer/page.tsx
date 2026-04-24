@@ -51,10 +51,21 @@ const SKILL_TIERS = [
 ];
 
 const AGE_GROUPS = [
-  { value: "senior", label: "Senior" },
-  { value: "veteran", label: "Veteran" },
-  { value: "youth", label: "Youth" },
+  { value: "under30", label: "Under 30" },
+  { value: "age30to40", label: "30–40" },
+  { value: "age40to50", label: "40–50" },
+  { value: "over50", label: "Above 50" },
 ];
+
+// Map legacy age values to new ones for display
+function normalizeAgeClient(age: string): string {
+  switch (age) {
+    case "youth": return "under30";
+    case "senior": return "age30to40";
+    case "veteran": return "age40to50";
+    default: return age;
+  }
+}
 
 const POSITIONS = [
   { value: "any", label: "Any" },
@@ -108,7 +119,7 @@ export default function TeamBalancerPage() {
   const [guests, setGuests] = useState<GuestPlayer[]>([]);
   const [guestName, setGuestName] = useState("");
   const [guestTier, setGuestTier] = useState("silver");
-  const [guestAge, setGuestAge] = useState("senior");
+  const [guestAge, setGuestAge] = useState("age30to40");
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState<TeamResult | null>(null);
   const [jerseyA, setJerseyA] = useState(0);
@@ -160,7 +171,7 @@ export default function TeamBalancerPage() {
     const s = skills[memberId];
     return {
       skillTier: s?.skillTier ?? "silver",
-      ageGroup: s?.ageGroup ?? "senior",
+      ageGroup: normalizeAgeClient(s?.ageGroup ?? "age30to40"),
       position: s?.position ?? "any",
     };
   }
@@ -223,7 +234,7 @@ export default function TeamBalancerPage() {
     setGuests(newGuests);
     setGuestName("");
     setGuestTier("silver");
-    setGuestAge("senior");
+    setGuestAge("age30to40");
     // Auto-generate with new guest
     doGenerate(selectedIds, newGuests);
   }
@@ -589,7 +600,7 @@ export default function TeamBalancerPage() {
               const hasChanges =
                 editSkills[m.id] &&
                 (editSkills[m.id].skillTier !== (skills[m.id]?.skillTier ?? "silver") ||
-                  editSkills[m.id].ageGroup !== (skills[m.id]?.ageGroup ?? "senior") ||
+                  editSkills[m.id].ageGroup !== normalizeAgeClient(skills[m.id]?.ageGroup ?? "age30to40") ||
                   editSkills[m.id].position !== (skills[m.id]?.position ?? "any"));
               return (
                 <div
