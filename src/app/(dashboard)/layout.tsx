@@ -80,7 +80,10 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-gray-50">
       {/* Mobile Header */}
-      <header className="md:hidden bg-[#1a2744] text-white sticky top-0 z-50">
+      <header
+        className="md:hidden bg-[#1a2744] text-white sticky top-0 z-50"
+        style={{ paddingTop: "env(safe-area-inset-top)" }}
+      >
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
             <img src="/logo.jpg" alt="Dadas FC" width={36} height={36} className="rounded-lg" />
@@ -102,7 +105,7 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
 
       {/* Mobile Menu Dropdown */}
       {menuOpen && (
-        <div className="md:hidden bg-[#1a2744] text-white px-4 pb-4 space-y-1 sticky top-[108px] z-50">
+        <div className="md:hidden bg-[#1a2744] text-white px-4 pb-4 space-y-1 z-40">
           {navItems.map((item) => {
             const active = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
             return (
