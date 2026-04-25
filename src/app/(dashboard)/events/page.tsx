@@ -199,29 +199,70 @@ export default function EventsPage() {
 
   // --- WhatsApp share for event ---
   function shareEventWhatsApp(event: Event) {
-    const paidMemberIds = new Set((event.payments || []).map((p) => p.member.id));
-    const paidDues = event.dues.filter((d) => paidMemberIds.has(d.member.id));
-    const unpaidDues = event.dues.filter((d) => !paidMemberIds.has(d.member.id));
+    const fee = event.perHeadFee;
+    const payments = event.payments || [];
+
+    // Index payments by member to support overpayment / extras detection
+    const payByMember = new Map<string, number>();
+    for (const p of payments) {
+      payByMember.set(p.member.id, (payByMember.get(p.member.id) || 0) + p.amount);
+    }
+
+    const paidDues = event.dues.filter((d) => payByMember.has(d.member.id));
+    const unpaidDues = event.dues.filter((d) => !payByMember.has(d.member.id));
+
     const totalDue = event.dues.reduce((s, d) => s + d.amount, 0);
-    const totalPaid = (event.payments || []).reduce((s, p) => s + p.amount, 0);
+    const totalCollected = payments.reduce((s, p) => s + p.amount, 0);
+    // Extras = paid amount above the fee for that match (overpayment that day)
+    let totalExtras = 0;
+    const extras: { name: string; extra: number }[] = [];
+    for (const d of paidDues) {
+      const paid = payByMember.get(d.member.id) || 0;
+      const extra = paid - d.amount;
+      if (extra > 0.01) {
+        totalExtras += extra;
+        extras.push({ name: d.member.name, extra });
+      }
+    }
 
     let msg = `*${event.name}*\n`;
     msg += `Date: ${formatDate(event.date)}\n`;
-    msg += `Fee: ${formatAED(event.perHeadFee)}/head | Players: ${event.dues.length}\n`;
-    msg += `Total Due: ${formatAED(totalDue)} | Collected: ${formatAED(totalPaid)}\n\n`;
+    msg += `Fee: ${formatAED(fee)}/head | Players: ${event.dues.length}\n`;
+    msg += `Total Due: ${formatAED(totalDue)} | Collected: ${formatAED(totalCollected)}\n`;
+    if (totalExtras > 0.01) {
+      msg += `Extra Received: ${formatAED(totalExtras)}\n`;
+    }
+    msg += `\n`;
 
     if (paidDues.length > 0) {
       msg += `*Paid (${paidDues.length}):*\n`;
-      paidDues.forEach((d) => { msg += `  ${d.member.name} - ${formatAED(d.amount)}\n`; });
+      paidDues.forEach((d) => {
+        const paid = payByMember.get(d.member.id) || 0;
+        const extra = paid - d.amount;
+        if (extra > 0.01) {
+          msg += `  ${d.member.name} - ${formatAED(paid)} (incl. +${formatAED(extra)} extra)\n`;
+        } else if (extra < -0.01) {
+          msg += `  ${d.member.name} - ${formatAED(paid)} (credit ${formatAED(Math.abs(extra))})\n`;
+        } else {
+          msg += `  ${d.member.name} - ${formatAED(paid)}\n`;
+        }
+      });
       msg += `\n`;
     }
     if (unpaidDues.length > 0) {
       msg += `*Unpaid (${unpaidDues.length}):*\n`;
       unpaidDues.forEach((d) => { msg += `  ${d.member.name} - ${formatAED(d.amount)}\n`; });
+      msg += `\n`;
     }
+
+    // Day summary
+    msg += `*Day Summary*\n`;
+    msg += `Collected today: ${formatAED(totalCollected)}\n`;
+    if (totalExtras > 0.01) msg += `Extras today: ${formatAED(totalExtras)}\n`;
     if (event.totalCost > 0) {
-      const surplus = totalDue - event.totalCost;
-      msg += `\nCost: ${formatAED(event.totalCost)} | ${surplus >= 0 ? "Surplus" : "Deficit"}: ${formatAED(Math.abs(surplus))}`;
+      const surplus = totalCollected - event.totalCost;
+      msg += `Ground Cost: ${formatAED(event.totalCost)}\n`;
+      msg += `${surplus >= 0 ? "Surplus" : "Deficit"}: ${formatAED(Math.abs(surplus))}\n`;
     }
 
     shareText(msg);
