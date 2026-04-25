@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { formatAED, formatDate } from "@/lib/format";
 
-interface Member { id: string; name: string; isGuest?: boolean }
+interface Member { id: string; name: string; isGuest?: boolean; balance?: number }
 interface EventDue { id: string; amount: number; paid: boolean; member: Member }
 interface EventPayment { id: string; amount: number; method: string; member: Member }
 interface Event { id: string; name: string; type: string; date: string; perHeadFee: number; totalCost: number; notes: string; dues: EventDue[]; payments?: EventPayment[] }
@@ -278,10 +278,18 @@ export default function EventsPage() {
               <div className="bg-white rounded-lg border border-gray-200 divide-y max-h-[400px] overflow-y-auto">
                 {matchFilteredMembers.map((m) => {
                   const pp = playerPayments[m.id] || { playing: false, paid: false, method: "cash" };
+                  const bal = m.balance ?? 0;
                   return (
                     <div key={m.id} className={`flex items-center gap-3 px-3 py-2.5 ${pp.playing ? "bg-white" : "bg-gray-50"}`}>
                       <button type="button" onClick={() => togglePlaying(m.id)} className={`w-7 h-7 rounded-full border-2 flex items-center justify-center text-xs font-bold flex-shrink-0 ${pp.playing ? "bg-blue-600 border-blue-600 text-white" : "bg-white border-gray-300 text-gray-300"}`}>{pp.playing ? "✓" : ""}</button>
-                      <span className={`flex-1 font-semibold text-sm min-w-0 truncate ${pp.playing ? "text-gray-900" : "text-gray-400 line-through"}`}>{m.name}</span>
+                      <div className="flex-1 min-w-0">
+                        <span className={`font-semibold text-sm truncate block ${pp.playing ? "text-gray-900" : "text-gray-400 line-through"}`}>{m.name}</span>
+                        {Math.abs(bal) >= 0.01 && (
+                          <span className={`text-xs font-medium ${bal > 0 ? "text-red-600" : "text-emerald-600"}`}>
+                            {bal > 0 ? `Owes ${formatAED(bal)}` : `Credit ${formatAED(Math.abs(bal))}`}
+                          </span>
+                        )}
+                      </div>
                       {pp.playing && !pp.paid && <span className="text-sm font-medium flex-shrink-0 text-gray-800">{formatAED(parseFloat(matchFee || "0"))}</span>}
                       {pp.playing && pp.paid && (
                         <input type="number" step="0.01" value={pp.customAmount ?? ""} onChange={(e) => setPlayerPayments((p) => ({ ...p, [m.id]: { ...p[m.id], customAmount: e.target.value } }))}

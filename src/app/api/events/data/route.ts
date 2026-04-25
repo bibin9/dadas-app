@@ -1,9 +1,9 @@
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
 
-// Combined endpoint: returns events, active members, settings, groups, and templates in one call
+// Combined endpoint: returns events, active members (with balances), settings, groups, and templates
 export async function GET() {
-  const [events, members, settings, groups, templates] = await Promise.all([
+  const [events, members, settings, groups, templates, allDues, allPayments] = await Promise.all([
     prisma.event.findMany({
       orderBy: { date: "desc" },
       include: {
@@ -18,59 +18,31 @@ export async function GET() {
       orderBy: { createdAt: "desc" },
     }),
     prisma.eventTemplate.findMany({ orderBy: { createdAt: "desc" } }),
+    prisma.eventDue.findMany(),
+    prisma.payment.findMany({ where: { category: "dadas" } }),
   ]);
 
-  // Run cleanup in background (non-blocking)
-  const autoDeleteDays = settings?.autoDeleteDays || 0;
-  if (autoDeleteDays > 0) {
-    cleanupSettledMatches(autoDeleteDays).catch(() => {});
+  // Compute balance per member: totalDue - totalPaid
+  // Positive = owes (debit), Negative = credit (overpaid / advance)
+  const dueByMember = new Map<string, number>();
+  for (const d of allDues) {
+    dueByMember.set(d.memberId, (dueByMember.get(d.memberId) || 0) + d.amount);
   }
+  const paidByMember = new Map<string, number>();
+  for (const p of allPayments) {
+    paidByMember.set(p.memberId, (paidByMember.get(p.memberId) || 0) + p.amount);
+  }
+  const membersWithBalance = members.map((m) => {
+    const totalDue = dueByMember.get(m.id) || 0;
+    const totalPaid = paidByMember.get(m.id) || 0;
+    return { ...m, balance: Math.round((totalDue - totalPaid) * 100) / 100 };
+  });
 
   return NextResponse.json({
     events,
-    members,
-    settings: settings || { defaultMatchFee: 20, groupName: "Company", autoDeleteDays: 0 },
+    members: membersWithBalance,
+    settings: settings || { defaultMatchFee: 20, groupName: "Company" },
     groups,
     templates,
   });
-}
-
-async function cleanupSettledMatches(days: number) {
-  const cutoffDate = new Date();
-  cutoffDate.setDate(cutoffDate.getDate() - days);
-  const oldMatches = await prisma.event.findMany({
-    where: { type: "match", date: { lt: cutoffDate } },
-    include: { dues: true, payments: true },
-  });
-  const settledIds: string[] = [];
-  const carryForwards: { memberId: string; amount: number; method: string; date: Date }[] = [];
-
-  for (const match of oldMatches) {
-    if (match.dues.length === 0) continue;
-    const paidMemberIds = new Set(match.payments.map((p) => p.memberId));
-    if (match.dues.every((d) => paidMemberIds.has(d.memberId))) {
-      settledIds.push(match.id);
-      // Carry forward overpayments
-      for (const due of match.dues) {
-        const memberPays = match.payments.filter((p) => p.memberId === due.memberId);
-        const totalPaid = memberPays.reduce((s: number, p) => s + p.amount, 0);
-        const excess = totalPaid - due.amount;
-        if (excess > 0.01) {
-          carryForwards.push({ memberId: due.memberId, amount: excess, method: memberPays[0]?.method || "cash", date: match.date });
-        }
-      }
-    }
-  }
-  if (settledIds.length > 0) {
-    if (carryForwards.length > 0) {
-      await prisma.payment.createMany({
-        data: carryForwards.map((cf) => ({
-          memberId: cf.memberId, amount: cf.amount, method: cf.method, date: cf.date,
-          reference: "Carry forward from settled match", notes: "Auto-carried excess payment", eventId: null,
-        })),
-      });
-    }
-    await prisma.payment.deleteMany({ where: { eventId: { in: settledIds } } });
-    await prisma.event.deleteMany({ where: { id: { in: settledIds } } });
-  }
 }

@@ -15,7 +15,6 @@ export default function SettingsPage() {
   const [defaultBigTicketShare, setDefaultBigTicketShare] = useState("50");
   const [bigTicketGroupId, setBigTicketGroupId] = useState("");
   const [groupName, setGroupName] = useState("Company");
-  const [autoDeleteDays, setAutoDeleteDays] = useState("0");
   const [saved, setSaved] = useState(false);
 
   // Password change
@@ -53,7 +52,6 @@ export default function SettingsPage() {
     setDefaultBigTicketShare(String(s.defaultBigTicketShare || 50));
     setBigTicketGroupId(s.bigTicketGroupId || "");
     setGroupName(s.groupName || "Company");
-    setAutoDeleteDays(String(s.autoDeleteDays || 0));
     setTemplates(data.templates);
     setGroups(data.groups);
     setLoading(false);
@@ -72,7 +70,6 @@ export default function SettingsPage() {
           defaultBigTicketShare: parseFloat(defaultBigTicketShare) || 50,
           bigTicketGroupId,
           groupName,
-          autoDeleteDays: parseInt(autoDeleteDays) || 0,
         }),
       });
       setSaved(true);
@@ -300,20 +297,6 @@ export default function SettingsPage() {
                 {groups.map((g) => <option key={g.id} value={g.id}>{g.name} ({g.members.length} members)</option>)}
               </select>
               <p className="text-xs text-gray-600 mt-1">Members shown in Big Ticket profile</p>
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-800 mb-1">Auto-Delete Settled Matches</label>
-              <select value={autoDeleteDays} onChange={(e) => setAutoDeleteDays(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-gray-900">
-                <option value="0">Disabled</option>
-                <option value="3">After 3 days</option>
-                <option value="7">After 7 days</option>
-                <option value="14">After 14 days</option>
-                <option value="30">After 30 days</option>
-                <option value="60">After 60 days</option>
-                <option value="90">After 90 days</option>
-              </select>
-              <p className="text-xs text-gray-600 mt-1">Auto-delete matches where all players have paid</p>
             </div>
           </div>
 

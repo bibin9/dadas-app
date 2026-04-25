@@ -80,7 +80,8 @@
       "Bash(curl -s \"https://dadas-app.vercel.app/api/dashboard?profile=bigticket\")",
       "Bash(TURSO_DATABASE_URL=\"libsql://dadas-app-bibin.aws-ap-south-1.turso.io\" TURSO_AUTH_TOKEN=\"eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3NzYwMjQwNjUsImlkIjoiMDE5ZDdjOGMtNzAwMS03Mjg5LTk3MzItMzEwOTJjMTQ3ZTBmIiwicmlkIjoiNmFjYjM4NDgtZWY0My00YzFhLThiODAtMTA2NWY0MWE5ZWU2In0.IZ-AsANLB71CDlve4qa6onFC_vGzq3qDIRSaPnsG760h-B7uMbUk9_IOG2jb3pE_J4xxq_a7izT1Rt7lm08HDg\" JWT_SECRET=\"dadas-fc-jwt-secret-2024-secure\" npx next dev --port 3099)",
       "Bash(curl -s \"http://localhost:3099/api/dashboard?profile=bigticket\" -H \"Cookie: token=test\")",
-      "Bash(node prisma/seed-turso.mjs)"
+      "Bash(node prisma/seed-turso.mjs)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }
