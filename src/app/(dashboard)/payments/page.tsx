@@ -6,7 +6,7 @@ import { useProfile } from "@/lib/profile-context";
 
 interface Member { id: string; name: string }
 interface Event { id: string; name: string; date: string; type: string }
-interface Payment { id: string; amount: number; method: string; reference: string; notes: string; date: string; member: Member; event?: Event | null }
+interface Payment { id: string; amount: number; method: string; reference: string; notes: string; date: string; category?: string; member: Member; event?: Event | null }
 
 export default function PaymentsPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -23,6 +23,7 @@ export default function PaymentsPage() {
 
   // Edit state
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   // Filters
@@ -39,14 +40,23 @@ export default function PaymentsPage() {
   const isBigTicket = profile === "bigticket";
 
   useEffect(() => {
-    loadAll();
+    const ctrl = new AbortController();
+    fetch(`/api/payments/data?profile=${profile}`, { signal: ctrl.signal })
+      .then((r) => r.json())
+      .then((data) => {
+        setPayments(data.payments || []);
+        setMembers(data.members || []);
+        setEvents(data.events || []);
+      })
+      .catch((e) => { if (e.name !== "AbortError") console.error(e); });
+    return () => ctrl.abort();
   }, [profile]);
 
   function loadAll() {
     fetch(`/api/payments/data?profile=${profile}`).then((r) => r.json()).then((data) => {
-      setPayments(data.payments);
-      setMembers(data.members);
-      setEvents(data.events);
+      setPayments(data.payments || []);
+      setMembers(data.members || []);
+      setEvents(data.events || []);
     });
   }
 
@@ -59,6 +69,7 @@ export default function PaymentsPage() {
 
   function openEditForm(p: Payment) {
     setEditingId(p.id);
+    setEditingCategory(p.category || (isBigTicket ? "bigticket" : "dadas"));
     setMemberId(p.member.id);
     setAmount(String(p.amount));
     setMethod(p.method);
@@ -75,7 +86,8 @@ export default function PaymentsPage() {
       const payload = {
         memberId, amount: parseFloat(amount), method, reference, notes, date,
         eventId: eventId || null,
-        category: isBigTicket ? "bigticket" : "dadas",
+        // Preserve original category when editing; otherwise use current profile
+        category: editingId ? (editingCategory || "dadas") : (isBigTicket ? "bigticket" : "dadas"),
       };
 
       if (editingId) {
@@ -91,7 +103,7 @@ export default function PaymentsPage() {
           body: JSON.stringify(payload),
         });
       }
-      setShowForm(false); setEditingId(null); resetForm(); loadAll();
+      setShowForm(false); setEditingId(null); setEditingCategory(null); resetForm(); loadAll();
     } finally { setSubmitting(false); }
   }
 

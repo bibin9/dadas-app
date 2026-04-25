@@ -41,19 +41,23 @@ function ReportsContent() {
   const [expandedEvent, setExpandedEvent] = useState<string | null>(null);
 
   useEffect(() => {
+    const ctrl = new AbortController();
     setEventReports([]);
     setOutstandingReport([]);
     setPurchaseReports([]);
-    fetch(`/api/reports?profile=${profile}`).then((r) => r.json()).then((data) => {
-      setEventReports(data.eventReports || []);
-      setOutstandingReport(data.outstandingReport || []);
-      setPurchaseReports(data.purchaseReports || []);
-      setGroupName(data.groupName);
-      // For bigticket, default to outstanding tab
-      if (profile === "bigticket") {
-        setTab("outstanding");
-      }
-    });
+    fetch(`/api/reports?profile=${profile}`, { signal: ctrl.signal })
+      .then((r) => r.json())
+      .then((data) => {
+        // Guard: only apply if response matches current profile
+        if (data.profile && data.profile !== profile) return;
+        setEventReports(data.eventReports || []);
+        setOutstandingReport(data.outstandingReport || []);
+        setPurchaseReports(data.purchaseReports || []);
+        setGroupName(data.groupName);
+        if (profile === "bigticket") setTab("outstanding");
+      })
+      .catch((e) => { if (e.name !== "AbortError") console.error(e); });
+    return () => ctrl.abort();
   }, [profile]);
 
   async function shareText(text: string) {

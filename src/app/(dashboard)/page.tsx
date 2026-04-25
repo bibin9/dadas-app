@@ -45,9 +45,14 @@ export default function DashboardPage() {
   const { profile } = useProfile();
 
   useEffect(() => {
+    const ctrl = new AbortController();
     setData(null);
     setBalanceFilter("all");
-    fetch(`/api/dashboard?profile=${profile}`).then((r) => r.json()).then(setData);
+    fetch(`/api/dashboard?profile=${profile}`, { signal: ctrl.signal })
+      .then((r) => r.json())
+      .then((d) => { if (d.profile === profile) setData(d); })
+      .catch((e) => { if (e.name !== "AbortError") console.error(e); });
+    return () => ctrl.abort();
   }, [profile]);
 
   if (!data || data.profile !== profile) return <div className="text-gray-700 font-medium p-4">Loading...</div>;

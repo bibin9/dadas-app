@@ -1,40 +1,64 @@
 import { prisma } from "@/lib/db";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-// Combined endpoint: returns events, active members (with balances), settings, groups, and templates
-export async function GET() {
-  const [events, members, settings, groups, templates, allDues, allPayments] = await Promise.all([
+export const dynamic = "force-dynamic";
+
+// Combined endpoint: returns events, active members (with balances), settings, groups, templates
+// Supports ?limit=N to cap recent events for faster loads
+export async function GET(request: NextRequest) {
+  const limitParam = request.nextUrl.searchParams.get("limit");
+  const take = limitParam ? parseInt(limitParam, 10) : undefined;
+
+  const [events, members, settings, groups, templates, dueAgg, paidAgg] = await Promise.all([
     prisma.event.findMany({
       orderBy: { date: "desc" },
+      ...(take ? { take } : {}),
       include: {
-        dues: { include: { member: true } },
-        payments: { include: { member: true } },
+        dues: {
+          select: {
+            id: true,
+            amount: true,
+            paid: true,
+            member: { select: { id: true, name: true, isGuest: true } },
+          },
+        },
+        payments: {
+          select: {
+            id: true,
+            amount: true,
+            method: true,
+            member: { select: { id: true, name: true } },
+          },
+        },
       },
     }),
-    prisma.member.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
+    prisma.member.findMany({
+      where: { active: true },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, phone: true, isGuest: true },
+    }),
     prisma.settings.findFirst({ where: { id: "main" } }),
     prisma.memberGroup.findMany({
-      include: { members: { include: { member: true } } },
       orderBy: { createdAt: "desc" },
+      include: { members: { include: { member: { select: { id: true, name: true } } } } },
     }),
     prisma.eventTemplate.findMany({ orderBy: { createdAt: "desc" } }),
-    prisma.eventDue.findMany(),
-    prisma.payment.findMany({ where: { category: "dadas" } }),
+    prisma.eventDue.groupBy({ by: ["memberId"], _sum: { amount: true } }),
+    prisma.payment.groupBy({
+      by: ["memberId"],
+      where: { category: "dadas" },
+      _sum: { amount: true },
+    }),
   ]);
 
-  // Compute balance per member: totalDue - totalPaid
-  // Positive = owes (debit), Negative = credit (overpaid / advance)
-  const dueByMember = new Map<string, number>();
-  for (const d of allDues) {
-    dueByMember.set(d.memberId, (dueByMember.get(d.memberId) || 0) + d.amount);
-  }
-  const paidByMember = new Map<string, number>();
-  for (const p of allPayments) {
-    paidByMember.set(p.memberId, (paidByMember.get(p.memberId) || 0) + p.amount);
-  }
+  // Compute balances using SQL-side aggregation
+  const dueMap = new Map<string, number>();
+  for (const d of dueAgg) dueMap.set(d.memberId, d._sum.amount || 0);
+  const paidMap = new Map<string, number>();
+  for (const p of paidAgg) paidMap.set(p.memberId, p._sum.amount || 0);
   const membersWithBalance = members.map((m) => {
-    const totalDue = dueByMember.get(m.id) || 0;
-    const totalPaid = paidByMember.get(m.id) || 0;
+    const totalDue = dueMap.get(m.id) || 0;
+    const totalPaid = paidMap.get(m.id) || 0;
     return { ...m, balance: Math.round((totalDue - totalPaid) * 100) / 100 };
   });
 

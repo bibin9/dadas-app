@@ -23,7 +23,14 @@ export async function GET(request: NextRequest) {
     prisma.payment.findMany({
       where: { category },
       orderBy: { date: "desc" },
-      include: {
+      select: {
+        id: true,
+        amount: true,
+        method: true,
+        reference: true,
+        notes: true,
+        date: true,
+        category: true,
         member: { select: { id: true, name: true } },
         event: { select: { id: true, name: true, date: true, type: true } },
       },

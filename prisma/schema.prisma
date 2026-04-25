@@ -62,6 +62,9 @@ model Event {
   payments Payment[]
   incomes  CompanyIncome[]
   expenses EventExpense[]
+
+  @@index([date])
+  @@index([type])
 }
 
 model EventExpense {
@@ -76,6 +79,9 @@ model EventExpense {
   createdAt   DateTime @default(now())
 
   event       Event?   @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  @@index([eventId])
+  @@index([date])
 }
 
 model EventDue {
@@ -89,6 +95,8 @@ model EventDue {
   member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   @@unique([eventId, memberId])
+  @@index([memberId])
+  @@index([eventId])
 }
 
 model Purchase {
@@ -113,6 +121,9 @@ model PurchaseSplit {
   member   Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   @@unique([purchaseId, memberId])
+  @@index([memberId])
+  @@index([purchaseId])
+  @@index([paid])
 }
 
 model Payment {
@@ -129,6 +140,11 @@ model Payment {
 
   member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
   event  Event? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  @@index([memberId])
+  @@index([eventId])
+  @@index([category])
+  @@index([date])
 }
 
 model CompanyIncome {
@@ -143,6 +159,9 @@ model CompanyIncome {
   createdAt   DateTime @default(now())
 
   event       Event?   @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  @@index([eventId])
+  @@index([date])
 }
 
 model EventTemplate {

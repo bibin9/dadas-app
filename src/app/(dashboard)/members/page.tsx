@@ -33,7 +33,19 @@ export default function MembersPage() {
   const [loading, setLoading] = useState(true);
   const { profile } = useProfile();
 
-  useEffect(() => { loadAll(); }, [profile]);
+  useEffect(() => {
+    const ctrl = new AbortController();
+    setLoading(true);
+    fetch(`/api/members/data?profile=${profile}`, { signal: ctrl.signal })
+      .then((r) => r.json())
+      .then((data) => {
+        setMembers(data.members);
+        setGroups(data.groups);
+        setLoading(false);
+      })
+      .catch((e) => { if (e.name !== "AbortError") console.error(e); });
+    return () => ctrl.abort();
+  }, [profile]);
 
   async function loadAll() {
     const data = await (await fetch(`/api/members/data?profile=${profile}`)).json();

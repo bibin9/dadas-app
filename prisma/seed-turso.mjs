@@ -165,6 +165,29 @@ for (const sql of migrations) {
   try { await db.execute(sql); } catch { /* column already exists */ }
 }
 
+// Performance indexes — safe to run multiple times
+const indexes = [
+  `CREATE INDEX IF NOT EXISTS idx_eventdue_member ON EventDue(memberId)`,
+  `CREATE INDEX IF NOT EXISTS idx_eventdue_event ON EventDue(eventId)`,
+  `CREATE INDEX IF NOT EXISTS idx_payment_member ON Payment(memberId)`,
+  `CREATE INDEX IF NOT EXISTS idx_payment_event ON Payment(eventId)`,
+  `CREATE INDEX IF NOT EXISTS idx_payment_category ON Payment(category)`,
+  `CREATE INDEX IF NOT EXISTS idx_payment_date ON Payment(date)`,
+  `CREATE INDEX IF NOT EXISTS idx_purchasesplit_member ON PurchaseSplit(memberId)`,
+  `CREATE INDEX IF NOT EXISTS idx_purchasesplit_purchase ON PurchaseSplit(purchaseId)`,
+  `CREATE INDEX IF NOT EXISTS idx_purchasesplit_paid ON PurchaseSplit(paid)`,
+  `CREATE INDEX IF NOT EXISTS idx_event_date ON Event(date)`,
+  `CREATE INDEX IF NOT EXISTS idx_event_type ON Event(type)`,
+  `CREATE INDEX IF NOT EXISTS idx_companyincome_event ON CompanyIncome(eventId)`,
+  `CREATE INDEX IF NOT EXISTS idx_companyincome_date ON CompanyIncome(date)`,
+  `CREATE INDEX IF NOT EXISTS idx_eventexpense_event ON EventExpense(eventId)`,
+  `CREATE INDEX IF NOT EXISTS idx_eventexpense_date ON EventExpense(date)`,
+];
+for (const sql of indexes) {
+  try { await db.execute(sql); } catch (e) { console.error("Index error:", e.message); }
+}
+console.log("Indexes ensured");
+
 console.log("Tables created");
 
 // Seed admin user
