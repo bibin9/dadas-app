@@ -139,12 +139,18 @@ export default function EventsPage() {
   }
 
   async function handleCreateMatch(e: React.FormEvent) {
-    e.preventDefault(); if (submitting) return; setSubmitting(true);
+    e.preventDefault(); if (submitting) return;
+    const cost = parseFloat(matchCost);
+    if (!matchCost || isNaN(cost) || cost < 0) {
+      alert("Ground Cost is required. Please enter the actual ground/venue cost for this match.");
+      return;
+    }
+    setSubmitting(true);
     try {
       const fee = parseFloat(matchFee);
       const playingIds = Object.entries(playerPayments).filter(([, v]) => v.playing).map(([id]) => id);
       const paidPlayers = Object.entries(playerPayments).filter(([, v]) => v.playing && v.paid).map(([id, v]) => ({ memberId: id, amount: v.customAmount ? parseFloat(v.customAmount) : fee, method: v.method }));
-      const cost = parseFloat(matchCost || "0"); const collected = fee * (playingIds.length + guestNames.filter((g) => g.trim()).length); const surplus = collected - cost;
+      const collected = fee * (playingIds.length + guestNames.filter((g) => g.trim()).length); const surplus = collected - cost;
       if (editingEvent) { await fetch(`/api/events/${editingEvent.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: editingEvent.name, date: matchDate, perHeadFee: fee, totalCost: cost, notes: matchNotes, memberIds: playingIds, guestNames: guestNames.filter((g) => g.trim()), payments: paidPlayers }) }); }
       else {
         const res = await fetch("/api/events", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: "Football Match", date: matchDate, perHeadFee: fee, totalCost: cost, notes: matchNotes || (surplus > 0 ? `Surplus ${formatAED(surplus)} to ${settings.groupName} fund` : ""), memberIds: playingIds, type: "match", payments: paidPlayers, guestNames: guestNames.filter((g) => g.trim()) }) });
@@ -274,7 +280,7 @@ export default function EventsPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div><label className="block text-sm font-semibold text-gray-800 mb-1">Date</label><input type="date" value={matchDate} onChange={(e) => setMatchDate(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900" required /></div>
               <div><label className="block text-sm font-semibold text-gray-800 mb-1">Fee/Player</label><input type="number" step="0.01" value={matchFee} onChange={(e) => setMatchFee(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900" required /></div>
-              <div><label className="block text-sm font-semibold text-gray-800 mb-1">Ground Cost</label><input type="number" step="0.01" value={matchCost} onChange={(e) => setMatchCost(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900" placeholder="Optional" /></div>
+              <div><label className="block text-sm font-semibold text-gray-800 mb-1">Ground Cost <span className="text-red-600">*</span></label><input type="number" step="0.01" min="0" value={matchCost} onChange={(e) => setMatchCost(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900" placeholder="e.g. 150" required /></div>
               <div><label className="block text-sm font-semibold text-gray-800 mb-1">Notes</label><input type="text" value={matchNotes} onChange={(e) => setMatchNotes(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900" placeholder="Optional" /></div>
             </div>
 
