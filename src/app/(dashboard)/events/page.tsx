@@ -363,7 +363,21 @@ export default function EventsPage() {
                 )}
                 <button type="button" onClick={() => setSelectedMembers(members.map((m) => m.id))} className="text-sm text-emerald-700 hover:underline font-medium">All</button><button type="button" onClick={() => setSelectedMembers([])} className="text-sm text-gray-700 hover:underline font-medium">None</button></div></div>
               <input type="text" value={eventSearch} onChange={(e) => setEventSearch(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg mb-2 text-gray-900 text-sm" placeholder="Search members..." />
-              <div className="flex flex-wrap gap-2">{eventFilteredMembers.map((m) => (<label key={m.id} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border cursor-pointer text-sm font-medium ${selectedMembers.includes(m.id) ? "bg-emerald-50 border-emerald-400 text-emerald-900" : "bg-gray-50 border-gray-300 text-gray-600"}`}><input type="checkbox" checked={selectedMembers.includes(m.id)} onChange={() => setSelectedMembers((p) => p.includes(m.id) ? p.filter((x) => x !== m.id) : [...p, m.id])} className="sr-only" />{m.name}</label>))}</div>
+              <div className="flex flex-wrap gap-2">{eventFilteredMembers.map((m) => {
+                const bal = m.balance ?? 0;
+                const hasBal = Math.abs(bal) >= 0.01;
+                return (
+                  <label key={m.id} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border cursor-pointer text-sm font-medium ${selectedMembers.includes(m.id) ? "bg-emerald-50 border-emerald-400 text-emerald-900" : "bg-gray-50 border-gray-300 text-gray-600"}`}>
+                    <input type="checkbox" checked={selectedMembers.includes(m.id)} onChange={() => setSelectedMembers((p) => p.includes(m.id) ? p.filter((x) => x !== m.id) : [...p, m.id])} className="sr-only" />
+                    <span>{m.name}</span>
+                    {hasBal && (
+                      <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${bal > 0 ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"}`}>
+                        {bal > 0 ? `-${formatAED(bal)}` : `+${formatAED(Math.abs(bal))}`}
+                      </span>
+                    )}
+                  </label>
+                );
+              })}</div>
               {selectedMembers.length > 0 && eventTotalCost && (<p className="text-sm text-gray-800 mt-2 font-medium">{selectedMembers.length} members — {formatAED(eventPerHead)} per head</p>)}
             </div>
             <div className="flex gap-3">
