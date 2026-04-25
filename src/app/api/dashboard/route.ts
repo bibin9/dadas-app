@@ -57,16 +57,23 @@ async function handleDadas() {
 
   let totalReceived = 0;
   let totalOutstanding = 0;
+  let totalCredits = 0;
   for (const b of balances) {
     totalReceived += b.totalPaid;
-    totalOutstanding += Math.max(0, b.balance);
+    if (b.balance > 0) totalOutstanding += b.balance;
+    else if (b.balance < 0) totalCredits += -b.balance; // overpaid amount owed back to players
   }
 
   const totalIncome = incomeAgg._sum.amount || 0;
   const totalEventExpenses = expenseAgg._sum.amount || 0;
   const totalEventCosts = eventCostAgg._sum.totalCost || 0;
   const totalCosts = totalEventCosts + totalEventExpenses;
+
+  // Group fund = all money on hand (received + company income - costs)
+  // Player credits = portion of that money owed back to players (overpayments)
+  // Company fund = group fund minus what we owe players back
   const groupFund = totalReceived + totalIncome - totalCosts;
+  const companyFund = groupFund - totalCredits;
 
   return NextResponse.json({
     profile: "dadas",
@@ -76,7 +83,9 @@ async function handleDadas() {
       totalCosts,
       totalIncome,
       totalOutstanding,
+      totalCredits,
       groupFund,
+      companyFund,
       memberCount: members.length,
       groupName: settings?.groupName || "Company",
     },

@@ -19,7 +19,9 @@ interface DadasTotals {
   totalCosts: number;
   totalIncome: number;
   totalOutstanding: number;
+  totalCredits: number;
   groupFund: number;
+  companyFund: number;
   memberCount: number;
   groupName: string;
 }
@@ -85,17 +87,24 @@ export default function DashboardPage() {
 
       {/* Summary Cards */}
       {isDadas ? (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4 mb-6 md:mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4 mb-6 md:mb-8">
           <Card label="Total Received" value={formatAED(totals.totalReceived)} color="emerald" onClick={() => router.push("/payments")} />
           <Card label="Total Costs" value={formatAED(totals.totalCosts)} color="red" onClick={() => router.push("/expenses")} />
           <Card label="Total Income" value={formatAED(totals.totalIncome)} color="purple" onClick={() => router.push("/income")} />
           <Card label="Outstanding" value={formatAED(totals.totalOutstanding)} color={totals.totalOutstanding > 0 ? "amber" : "emerald"} onClick={() => router.push("/reports?tab=outstanding")} />
           <Card
             label={`${totals.groupName} Fund`}
-            value={formatAED(totals.groupFund)}
-            color={totals.groupFund >= 0 ? "emerald" : "red"}
-            subtitle={totals.groupFund >= 0 ? "Surplus" : "Deficit"}
+            value={formatAED(totals.companyFund)}
+            color={totals.companyFund >= 0 ? "emerald" : "red"}
+            subtitle={`Total ${formatAED(totals.groupFund)} − Credits`}
             onClick={() => router.push("/reports?tab=events")}
+          />
+          <Card
+            label="Player Credits"
+            value={formatAED(totals.totalCredits)}
+            color={totals.totalCredits > 0 ? "blue" : "gray"}
+            subtitle={totals.totalCredits > 0 ? "Owed back to players" : "No credits"}
+            onClick={() => setBalanceFilter("credits")}
           />
         </div>
       ) : (
