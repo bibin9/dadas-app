@@ -107,7 +107,11 @@ export default function PurchasesPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this purchase?")) return;
+    const p = purchases.find((x) => x.id === id);
+    const msg = p
+      ? `⚠️ DELETE this purchase?\n\n"${p.description}" — ${formatAED(p.totalAmount)}\n\nThis will also remove all member shares and cannot be undone.`
+      : "Delete this purchase?";
+    if (!confirm(msg)) return;
     await fetch(`/api/purchases/${id}`, { method: "DELETE" });
     loadPurchases();
   }

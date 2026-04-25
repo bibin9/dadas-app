@@ -79,7 +79,11 @@ export default function MembersPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this member? This will also remove all their dues and payments.")) return;
+    const m = members.find((x) => x.id === id);
+    const msg = m
+      ? `⚠️ DELETE member "${m.name}"?\n\nThis will PERMANENTLY remove the member and ALL their:\n• Event dues\n• Purchase shares\n• Payment history\n\nThis cannot be undone.`
+      : "Delete this member?";
+    if (!confirm(msg)) return;
     await fetch(`/api/members/${id}`, { method: "DELETE" });
     loadMembers();
   }
@@ -124,7 +128,11 @@ export default function MembersPage() {
   }
 
   async function handleDeleteGroup(id: string) {
-    if (!confirm("Delete this group?")) return;
+    const g = groups.find((x) => x.id === id);
+    const msg = g
+      ? `⚠️ DELETE group "${g.name}"?\n\n${g.members.length} member(s) will be unlinked. The members themselves are NOT deleted.\n\nThis cannot be undone.`
+      : "Delete this group?";
+    if (!confirm(msg)) return;
     await fetch(`/api/groups/${id}`, { method: "DELETE" });
     loadGroups();
   }

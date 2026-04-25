@@ -140,7 +140,15 @@ export default function EventsPage() {
     } finally { setSubmitting(false); }
   }
 
-  async function handleDelete(id: string) { if (!confirm("Delete this event and all its dues?")) return; await fetch(`/api/events/${id}`, { method: "DELETE" }); loadEvents(); }
+  async function handleDelete(id: string) {
+    const ev = events.find((x) => x.id === id);
+    const msg = ev
+      ? `⚠️ DELETE this ${ev.type === "match" ? "match" : "event"}?\n\n"${ev.name}" — ${formatDate(ev.date)}\n${ev.dues.length} player(s) • ${formatAED(ev.totalCost || ev.perHeadFee * ev.dues.length)}\n\nAll dues and linked payments will be removed. This cannot be undone.`
+      : "Delete this event?";
+    if (!confirm(msg)) return;
+    await fetch(`/api/events/${id}`, { method: "DELETE" });
+    loadEvents();
+  }
 
   // --- Inline payment for event detail ---
   async function recordInlinePayment(eventId: string, memberId: string, defaultAmount: number, eventDate: string) {

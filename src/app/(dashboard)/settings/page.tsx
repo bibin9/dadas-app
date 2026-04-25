@@ -144,7 +144,11 @@ export default function SettingsPage() {
   }
 
   async function handleDeleteTemplate(id: string) {
-    if (!confirm("Delete this template?")) return;
+    const tpl = templates.find((x) => x.id === id);
+    const msg = tpl
+      ? `⚠️ DELETE template "${tpl.name}"?\n\nThis cannot be undone.`
+      : "Delete this template?";
+    if (!confirm(msg)) return;
     await fetch(`/api/templates/${id}`, { method: "DELETE" });
     loadTemplates();
   }

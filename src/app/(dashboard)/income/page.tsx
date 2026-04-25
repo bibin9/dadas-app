@@ -78,7 +78,11 @@ export default function IncomePage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this income record?")) return;
+    const inc = incomes.find((x) => x.id === id);
+    const msg = inc
+      ? `⚠️ DELETE this income record?\n\n"${inc.description}" — ${formatAED(inc.amount)}\n\nThis cannot be undone.`
+      : "Delete this income record?";
+    if (!confirm(msg)) return;
     await fetch(`/api/income/${id}`, { method: "DELETE" });
     loadIncomes();
   }

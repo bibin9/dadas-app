@@ -96,13 +96,18 @@ export default function PaymentsPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this payment record?")) return;
+    const p = payments.find((x) => x.id === id);
+    const msg = p
+      ? `⚠️ DELETE this payment?\n\n${p.member.name} — ${formatAED(p.amount)} (${formatDate(p.date)})\n\nThis cannot be undone.`
+      : "Delete this payment record?";
+    if (!confirm(msg)) return;
     await fetch(`/api/payments/${id}`, { method: "DELETE" }); loadAll();
   }
 
   async function handleBulkDelete() {
     if (selected.size === 0) return;
-    if (!confirm(`Delete ${selected.size} selected payment(s)?`)) return;
+    const total = payments.filter((p) => selected.has(p.id)).reduce((s, p) => s + p.amount, 0);
+    if (!confirm(`⚠️ DELETE ${selected.size} payment(s) totaling ${formatAED(total)}?\n\nThis cannot be undone.`)) return;
     await fetch("/api/payments", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },

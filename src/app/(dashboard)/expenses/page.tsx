@@ -83,7 +83,11 @@ export default function ExpensesPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this expense record?")) return;
+    const exp = expenses.find((x) => x.id === id);
+    const msg = exp
+      ? `⚠️ DELETE this expense?\n\n"${exp.description}" — ${formatAED(exp.amount)}\n\nThis cannot be undone.`
+      : "Delete this expense record?";
+    if (!confirm(msg)) return;
     await fetch(`/api/expenses/${id}`, { method: "DELETE" });
     loadExpenses();
   }
