@@ -13,7 +13,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { name, date, perHeadFee, totalCost, notes, memberIds, guestNames } = await req.json();
+  const { name, date, perHeadFee, totalCost, notes, memberIds, guestNames, payments } = await req.json();
 
   // Create guest members if any
   const guestIds: string[] = [];
@@ -50,6 +50,27 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       amount: perHeadFee,
     })),
   });
+
+  // Sync inline payments: replace event-linked payments with the new set from the form
+  if (Array.isArray(payments)) {
+    const parsed = payments as { memberId: string; amount: number; method: string }[];
+    await prisma.payment.deleteMany({ where: { eventId: id } });
+    if (parsed.length > 0) {
+      const eventDate = new Date(date);
+      await prisma.payment.createMany({
+        data: parsed.map((p) => ({
+          memberId: p.memberId,
+          amount: p.amount,
+          method: p.method || "cash",
+          reference: `${name} - ${eventDate.toLocaleDateString()}`,
+          notes: "",
+          date: eventDate,
+          eventId: id,
+          category: "dadas",
+        })),
+      });
+    }
+  }
 
   const event = await prisma.event.findUnique({
     where: { id },

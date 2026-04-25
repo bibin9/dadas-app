@@ -109,7 +109,21 @@ export default function EventsPage() {
   function openEventEdit(ev: Event) { setEditingEvent(ev); setShowForm(true); setShowMatchForm(false); setName(ev.name); setDate(ev.date.split("T")[0]); setEventTotalCost(String(ev.totalCost || ev.perHeadFee * ev.dues.length)); setNotes(ev.notes); setSelectedMembers(ev.dues.map((d) => d.member.id)); setEventSearch(""); }
   function openMatchEdit(ev: Event) {
     setEditingEvent(ev); setShowMatchForm(true); setShowForm(false); setMatchDate(ev.date.split("T")[0]); setMatchFee(String(ev.perHeadFee)); setMatchCost(String(ev.totalCost || "")); setMatchNotes(ev.notes);
-    const map: Record<string, PlayerPayment> = {}; members.forEach((m) => { map[m.id] = { playing: false, paid: false, method: "cash" }; }); ev.dues.forEach((d) => { map[d.member.id] = { playing: true, paid: false, method: "cash" }; }); setPlayerPayments(map); setGuestNames([]); setMatchSearch("");
+    const map: Record<string, PlayerPayment> = {};
+    members.forEach((m) => { map[m.id] = { playing: false, paid: false, method: "cash" }; });
+    // Index existing payments by member so edits preserve paid status + amount + method
+    const payByMember: Record<string, EventPayment> = {};
+    (ev.payments || []).forEach((p) => { payByMember[p.member.id] = p; });
+    ev.dues.forEach((d) => {
+      const existing = payByMember[d.member.id];
+      map[d.member.id] = {
+        playing: true,
+        paid: !!existing,
+        method: existing?.method || "cash",
+        customAmount: existing && existing.amount !== ev.perHeadFee ? String(existing.amount) : undefined,
+      };
+    });
+    setPlayerPayments(map); setGuestNames([]); setMatchSearch("");
   }
 
   const eventPerHead = selectedMembers.length > 0 && eventTotalCost ? parseFloat(eventTotalCost) / selectedMembers.length : 0;
@@ -131,7 +145,7 @@ export default function EventsPage() {
       const playingIds = Object.entries(playerPayments).filter(([, v]) => v.playing).map(([id]) => id);
       const paidPlayers = Object.entries(playerPayments).filter(([, v]) => v.playing && v.paid).map(([id, v]) => ({ memberId: id, amount: v.customAmount ? parseFloat(v.customAmount) : fee, method: v.method }));
       const cost = parseFloat(matchCost || "0"); const collected = fee * (playingIds.length + guestNames.filter((g) => g.trim()).length); const surplus = collected - cost;
-      if (editingEvent) { await fetch(`/api/events/${editingEvent.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: editingEvent.name, date: matchDate, perHeadFee: fee, totalCost: cost, notes: matchNotes, memberIds: playingIds, guestNames: guestNames.filter((g) => g.trim()) }) }); }
+      if (editingEvent) { await fetch(`/api/events/${editingEvent.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: editingEvent.name, date: matchDate, perHeadFee: fee, totalCost: cost, notes: matchNotes, memberIds: playingIds, guestNames: guestNames.filter((g) => g.trim()), payments: paidPlayers }) }); }
       else {
         const res = await fetch("/api/events", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: "Football Match", date: matchDate, perHeadFee: fee, totalCost: cost, notes: matchNotes || (surplus > 0 ? `Surplus ${formatAED(surplus)} to ${settings.groupName} fund` : ""), memberIds: playingIds, type: "match", payments: paidPlayers, guestNames: guestNames.filter((g) => g.trim()) }) });
         if (!res.ok) { const err = await res.json(); alert(err.error || "Failed to create match"); return; }
