@@ -201,6 +201,7 @@ export default function EventsPage() {
   function shareEventWhatsApp(event: Event) {
     const fee = event.perHeadFee;
     const payments = event.payments || [];
+    const isMatch = event.type === "match";
 
     // Index payments by member to support overpayment / extras detection
     const payByMember = new Map<string, number>();
@@ -211,59 +212,69 @@ export default function EventsPage() {
     const paidDues = event.dues.filter((d) => payByMember.has(d.member.id));
     const unpaidDues = event.dues.filter((d) => !payByMember.has(d.member.id));
 
-    const totalDue = event.dues.reduce((s, d) => s + d.amount, 0);
     const totalCollected = payments.reduce((s, p) => s + p.amount, 0);
-    // Extras = paid amount above the fee for that match (overpayment that day)
     let totalExtras = 0;
-    const extras: { name: string; extra: number }[] = [];
     for (const d of paidDues) {
       const paid = payByMember.get(d.member.id) || 0;
       const extra = paid - d.amount;
-      if (extra > 0.01) {
-        totalExtras += extra;
-        extras.push({ name: d.member.name, extra });
-      }
+      if (extra > 0.01) totalExtras += extra;
     }
 
-    let msg = `*${event.name}*\n`;
-    msg += `Date: ${formatDate(event.date)}\n`;
-    msg += `Fee: ${formatAED(fee)}/head | Players: ${event.dues.length}\n`;
-    msg += `Total Due: ${formatAED(totalDue)} | Collected: ${formatAED(totalCollected)}\n`;
-    if (totalExtras > 0.01) {
-      msg += `Extra Received: ${formatAED(totalExtras)}\n`;
-    }
-    msg += `\n`;
+    // Helper for fixed-width number formatting (no "AED" prefix in the table)
+    const num = (n: number) => n.toFixed(2);
 
+    // Compute column widths
+    const allNames = event.dues.map((d) => d.member.name);
+    const nameWidth = Math.min(Math.max(...allNames.map((n) => n.length), 6), 14);
+    const padName = (n: string) => {
+      const trimmed = n.length > nameWidth ? n.slice(0, nameWidth - 1) + "…" : n;
+      return trimmed.padEnd(nameWidth);
+    };
+    const padAmt = (s: string, w = 7) => s.padStart(w);
+
+    const sep = "─".repeat(nameWidth + 8 + 9);
+
+    let msg = `${isMatch ? "⚽" : "📅"} *${event.name}*\n`;
+    msg += `📅 ${formatDate(event.date)}\n`;
+    msg += `💰 Fee: ${formatAED(fee)}/head · 👥 ${event.dues.length} players\n\n`;
+
+    // PAID table
     if (paidDues.length > 0) {
-      msg += `*Paid (${paidDues.length}):*\n`;
-      paidDues.forEach((d) => {
+      msg += `✅ *Paid (${paidDues.length})*\n`;
+      msg += "```\n";
+      msg += `${"PLAYER".padEnd(nameWidth)}${padAmt("PAID")}${padAmt("EXTRA")}\n`;
+      msg += `${sep}\n`;
+      for (const d of paidDues) {
         const paid = payByMember.get(d.member.id) || 0;
-        const extra = paid - d.amount;
-        if (extra > 0.01) {
-          msg += `  ${d.member.name} - ${formatAED(paid)} (incl. +${formatAED(extra)} extra)\n`;
-        } else if (extra < -0.01) {
-          msg += `  ${d.member.name} - ${formatAED(paid)} (credit ${formatAED(Math.abs(extra))})\n`;
-        } else {
-          msg += `  ${d.member.name} - ${formatAED(paid)}\n`;
-        }
-      });
-      msg += `\n`;
+        const diff = paid - d.amount;
+        let extraCol = "—";
+        if (diff > 0.01) extraCol = `+${num(diff)}`;
+        else if (diff < -0.01) extraCol = `cr ${num(Math.abs(diff))}`;
+        msg += `${padName(d.member.name)}${padAmt(num(paid))}${padAmt(extraCol, 9)}\n`;
+      }
+      msg += "```\n\n";
     }
+
+    // UNPAID list
     if (unpaidDues.length > 0) {
-      msg += `*Unpaid (${unpaidDues.length}):*\n`;
-      unpaidDues.forEach((d) => { msg += `  ${d.member.name} - ${formatAED(d.amount)}\n`; });
+      msg += `❌ *Unpaid (${unpaidDues.length})*\n`;
+      unpaidDues.forEach((d) => { msg += `• ${d.member.name} — ${formatAED(d.amount)}\n`; });
       msg += `\n`;
     }
 
-    // Day summary
-    msg += `*Day Summary*\n`;
-    msg += `Collected today: ${formatAED(totalCollected)}\n`;
-    if (totalExtras > 0.01) msg += `Extras today: ${formatAED(totalExtras)}\n`;
+    // Day Summary block
+    msg += `📊 *Day Summary*\n`;
+    msg += "```\n";
+    msg += `Collected   ${padAmt(num(totalCollected), 10)}\n`;
+    if (totalExtras > 0.01) {
+      msg += `Extras      ${padAmt(num(totalExtras), 10)}\n`;
+    }
     if (event.totalCost > 0) {
       const surplus = totalCollected - event.totalCost;
-      msg += `Ground Cost: ${formatAED(event.totalCost)}\n`;
-      msg += `${surplus >= 0 ? "Surplus" : "Deficit"}: ${formatAED(Math.abs(surplus))}\n`;
+      msg += `Ground      ${padAmt(num(event.totalCost), 10)}\n`;
+      msg += `${surplus >= 0 ? "Surplus    " : "Deficit    "} ${padAmt(num(Math.abs(surplus)), 10)}\n`;
     }
+    msg += "```";
 
     shareText(msg);
   }
