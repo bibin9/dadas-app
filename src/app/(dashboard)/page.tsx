@@ -17,6 +17,8 @@ interface MemberBalance {
 interface DadasTotals {
   totalReceived: number;
   totalCosts: number;
+  totalEventCosts: number;
+  totalEventExpenses: number;
   totalIncome: number;
   totalOutstanding: number;
   totalCredits: number;
@@ -89,7 +91,7 @@ export default function DashboardPage() {
       {isDadas ? (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4 mb-6 md:mb-8">
           <Card label="Total Received" value={formatAED(totals.totalReceived)} color="emerald" onClick={() => router.push("/payments")} />
-          <Card label="Total Costs" value={formatAED(totals.totalCosts)} color="red" onClick={() => router.push("/expenses")} />
+          <Card label="Total Costs" value={formatAED(totals.totalCosts)} color="red" subtitle={`Match: ${formatAED(totals.totalEventCosts)} + Exp: ${formatAED(totals.totalEventExpenses)}`} onClick={() => router.push("/expenses")} />
           <Card label="Total Income" value={formatAED(totals.totalIncome)} color="purple" onClick={() => router.push("/income")} />
           <Card label="Outstanding" value={formatAED(totals.totalOutstanding)} color={totals.totalOutstanding > 0 ? "amber" : "emerald"} onClick={() => router.push("/reports?tab=outstanding")} />
           <Card

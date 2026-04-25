@@ -81,6 +81,8 @@ async function handleDadas() {
     totals: {
       totalReceived,
       totalCosts,
+      totalEventCosts,
+      totalEventExpenses,
       totalIncome,
       totalOutstanding,
       totalCredits,
