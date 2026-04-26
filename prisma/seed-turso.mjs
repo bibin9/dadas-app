@@ -103,6 +103,18 @@ const tables = [
     notes TEXT NOT NULL DEFAULT '',
     createdAt TEXT NOT NULL DEFAULT (datetime('now'))
   )`,
+  `CREATE TABLE IF NOT EXISTS CompanyIncome (
+    id TEXT PRIMARY KEY,
+    description TEXT NOT NULL,
+    amount REAL NOT NULL,
+    category TEXT NOT NULL DEFAULT 'sponsorship',
+    date TEXT NOT NULL,
+    reference TEXT NOT NULL DEFAULT '',
+    notes TEXT NOT NULL DEFAULT '',
+    eventId TEXT,
+    createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (eventId) REFERENCES Event(id) ON DELETE SET NULL
+  )`,
   `CREATE TABLE IF NOT EXISTS EventExpense (
     id TEXT PRIMARY KEY,
     description TEXT NOT NULL,

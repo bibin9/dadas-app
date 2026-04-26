@@ -12,9 +12,12 @@ export async function middleware(request: NextRequest) {
   if (
     pathname === "/login" ||
     pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/api/backup") || // protected by its own BACKUP_TOKEN/CRON_SECRET
+    pathname === "/manifest.json" ||
+    pathname === "/sw.js" ||
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico" ||
-    pathname.match(/\.(jpg|jpeg|png|gif|svg|ico|webp|css|js)$/)
+    pathname.match(/\.(jpg|jpeg|png|gif|svg|ico|webp|css|js|json)$/)
   ) {
     return NextResponse.next();
   }

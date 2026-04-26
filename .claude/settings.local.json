@@ -92,7 +92,20 @@
       "Bash(curl -s -w \"\\\\nHTTP_STATUS:%{http_code}\\\\nTIME:%{time_total}s\\\\n\" -b cookies.txt \"https://dadas-app.vercel.app/api/dashboard?profile=dadas\")",
       "Bash(curl -s -c /tmp/cookies.txt -X POST \"https://dadas-app.vercel.app/api/auth/login\" -H \"Content-Type: application/json\" -d '{\"username\":\"admin\",\"password\":\"admin123\"}')",
       "Bash(curl -s -w \"STATUS:%{http_code} TIME:%{time_total}s\\\\n\" -b /tmp/cookies.txt \"https://dadas-app.vercel.app/api/dashboard?profile=dadas\")",
-      "Bash(npx netlify-cli *)"
+      "Bash(npx netlify-cli *)",
+      "Bash(curl -s -I \"https://dadas-app-dr.netlify.app\")",
+      "Bash(curl -s \"https://dadas-qqzxdcn4d-bibins-projects-a6edb646.vercel.app/api/backup?token=dadas-backup-2026-secure\")",
+      "Bash(xxd)",
+      "Bash(curl -s \"https://dadas-app.vercel.app/api/backup?token=wrong\")",
+      "Bash(curl -s \"https://dadas-app.vercel.app/api/backup?token=\")",
+      "Bash(curl -s \"https://dadas-app.vercel.app/api/backup\")",
+      "Bash(curl -s \"https://dadas-app.vercel.app/api/backup?debug=1&token=dadas-backup-2026-secure\")",
+      "Bash(curl -sw \"STATUS:%{http_code}\" \"https://dadas-app.vercel.app/api/backup?token=dadas-backup-2026-secure\")",
+      "Bash(curl -s -w \"\\\\n---STATUS:%{http_code} TIME:%{time_total}---\\\\n\" -X POST \"https://dadas-app.vercel.app/api/backup?token=dadas-backup-2026-secure\")",
+      "Bash(curl -sw \"STATUS:%{http_code}\\\\n\" \"https://dadas-app.vercel.app/api/backup?token=dadas-backup-2026-secure\")",
+      "Bash(curl -s -c /tmp/c.txt -X POST \"https://dadas-app.vercel.app/api/auth/login\" -H \"Content-Type: application/json\" -d '{\"username\":\"admin\",\"password\":\"admin123\"}')",
+      "Bash(curl -s -b /tmp/c.txt \"https://dadas-app.vercel.app/api/dashboard?profile=dadas\")",
+      "Bash(curl -sw \"STATUS:%{http_code}\\\\n\" -b /tmp/c.txt \"https://dadas-app.vercel.app/api/dashboard?profile=dadas\")"
     ]
   }
 }
