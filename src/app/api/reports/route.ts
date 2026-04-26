@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
 }
 
 async function handleDadas() {
-  const [events, members, settings, companyIncomes, eventExpenses, dueAgg, paidAgg] =
+  const [events, members, settings, companyIncomes, eventExpenses, allDues, allPayments] =
     await Promise.all([
       prisma.event.findMany({
         orderBy: { date: "desc" },
@@ -39,12 +39,8 @@ async function handleDadas() {
       prisma.settings.findUnique({ where: { id: "main" } }),
       prisma.companyIncome.findMany({ orderBy: { date: "desc" } }),
       prisma.eventExpense.findMany({ orderBy: { date: "desc" } }),
-      prisma.eventDue.groupBy({ by: ["memberId"], _sum: { amount: true } }),
-      prisma.payment.groupBy({
-        by: ["memberId"],
-        where: { category: "dadas" },
-        _sum: { amount: true },
-      }),
+      prisma.eventDue.findMany({ select: { memberId: true, amount: true } }),
+      prisma.payment.findMany({ where: { category: "dadas" }, select: { memberId: true, amount: true } }),
     ]);
 
   // Index incomes/expenses by event
@@ -132,11 +128,11 @@ async function handleDadas() {
     };
   });
 
-  // Outstanding via aggregations (no per-member row loads)
+  // Outstanding by JS aggregation (libsql adapter compat)
   const dueMap = new Map<string, number>();
-  for (const d of dueAgg) dueMap.set(d.memberId, d._sum.amount || 0);
+  for (const d of allDues) dueMap.set(d.memberId, (dueMap.get(d.memberId) || 0) + d.amount);
   const paidMap = new Map<string, number>();
-  for (const p of paidAgg) paidMap.set(p.memberId, p._sum.amount || 0);
+  for (const p of allPayments) paidMap.set(p.memberId, (paidMap.get(p.memberId) || 0) + p.amount);
 
   const outstandingReport = members
     .map((m) => {
@@ -180,7 +176,7 @@ async function handleBigTicket() {
     : { active: true as const };
   const splitWhere = memberIds ? { memberId: { in: memberIds }, paid: false } : { paid: false };
 
-  const [members, purchases, unpaidAgg] = await Promise.all([
+  const [members, purchases, unpaidSplits] = await Promise.all([
     prisma.member.findMany({
       where: memberWhere,
       orderBy: { name: "asc" },
@@ -190,11 +186,7 @@ async function handleBigTicket() {
       orderBy: { date: "desc" },
       select: { id: true, description: true, date: true, totalAmount: true },
     }),
-    prisma.purchaseSplit.groupBy({
-      by: ["memberId"],
-      where: splitWhere,
-      _sum: { amount: true },
-    }),
+    prisma.purchaseSplit.findMany({ where: splitWhere, select: { memberId: true, amount: true } }),
   ]);
 
   const purchaseReports = purchases.map((p) => ({
@@ -205,7 +197,7 @@ async function handleBigTicket() {
   }));
 
   const unpaidMap = new Map<string, number>();
-  for (const u of unpaidAgg) unpaidMap.set(u.memberId, u._sum.amount || 0);
+  for (const u of unpaidSplits) unpaidMap.set(u.memberId, (unpaidMap.get(u.memberId) || 0) + u.amount);
 
   const outstandingReport = members
     .map((m) => {

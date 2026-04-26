@@ -10,45 +10,37 @@ export async function GET(request: NextRequest) {
 }
 
 async function handleDadas() {
-  // Run aggregations in parallel — no row-level loads
-  const [
-    members,
-    settings,
-    duesAgg,
-    paymentsAgg,
-    incomeAgg,
-    expenseAgg,
-    eventCostAgg,
-  ] = await Promise.all([
+  const [members, events, settings, companyIncomes, allExpenses] = await Promise.all([
     prisma.member.findMany({
       where: { active: true },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, phone: true },
+      include: {
+        eventDues: { select: { amount: true } },
+        payments: { where: { category: "dadas" }, select: { amount: true } },
+      },
     }),
+    prisma.event.findMany({ select: { totalCost: true } }),
     prisma.settings.findUnique({ where: { id: "main" } }),
-    prisma.eventDue.groupBy({ by: ["memberId"], _sum: { amount: true } }),
-    prisma.payment.groupBy({
-      by: ["memberId"],
-      where: { category: "dadas" },
-      _sum: { amount: true },
-    }),
-    prisma.companyIncome.aggregate({ _sum: { amount: true } }),
-    prisma.eventExpense.aggregate({ _sum: { amount: true } }),
-    prisma.event.aggregate({ _sum: { totalCost: true } }),
+    prisma.companyIncome.findMany({ select: { amount: true } }),
+    prisma.eventExpense.findMany({ select: { amount: true } }),
   ]);
 
-  const dueMap = new Map<string, number>();
-  for (const d of duesAgg) dueMap.set(d.memberId, d._sum.amount || 0);
-  const paidMap = new Map<string, number>();
-  for (const p of paymentsAgg) paidMap.set(p.memberId, p._sum.amount || 0);
+  let totalIncome = 0;
+  for (const i of companyIncomes) totalIncome += i.amount;
+  let totalEventExpenses = 0;
+  for (const e of allExpenses) totalEventExpenses += e.amount;
+  let totalEventCosts = 0;
+  for (const e of events) totalEventCosts += e.totalCost;
 
-  const balances = members.map((m) => {
-    const totalDue = dueMap.get(m.id) || 0;
-    const totalPaid = paidMap.get(m.id) || 0;
+  const balances = members.map((member) => {
+    let totalDue = 0;
+    for (const d of member.eventDues) totalDue += d.amount;
+    let totalPaid = 0;
+    for (const p of member.payments) totalPaid += p.amount;
     return {
-      id: m.id,
-      name: m.name,
-      phone: m.phone,
+      id: member.id,
+      name: member.name,
+      phone: member.phone,
       totalDue,
       totalPaid,
       balance: totalDue - totalPaid,
@@ -61,17 +53,10 @@ async function handleDadas() {
   for (const b of balances) {
     totalReceived += b.totalPaid;
     if (b.balance > 0) totalOutstanding += b.balance;
-    else if (b.balance < 0) totalCredits += -b.balance; // overpaid amount owed back to players
+    else if (b.balance < 0) totalCredits += -b.balance;
   }
 
-  const totalIncome = incomeAgg._sum.amount || 0;
-  const totalEventExpenses = expenseAgg._sum.amount || 0;
-  const totalEventCosts = eventCostAgg._sum.totalCost || 0;
   const totalCosts = totalEventCosts + totalEventExpenses;
-
-  // Group fund = all money on hand (received + company income - costs)
-  // Player credits = portion of that money owed back to players (overpayments)
-  // Company fund = group fund minus what we owe players back
   const groupFund = totalReceived + totalIncome - totalCosts;
   const companyFund = groupFund - totalCredits;
 
@@ -98,7 +83,6 @@ async function handleBigTicket() {
   const settings = await prisma.settings.findUnique({ where: { id: "main" } });
   const bigTicketGroupId = settings?.bigTicketGroupId || "";
 
-  // Resolve Big Ticket member ids
   let memberIds: string[] | null = null;
   if (bigTicketGroupId) {
     const groupMembers = await prisma.memberGroupMember.findMany({
@@ -112,39 +96,29 @@ async function handleBigTicket() {
     ? { active: true as const, id: { in: memberIds } }
     : { active: true as const };
 
-  const splitWhere = memberIds ? { memberId: { in: memberIds } } : {};
-
-  const [members, purchasesAgg, paidAgg, unpaidAgg] = await Promise.all([
+  const [members, purchases] = await Promise.all([
     prisma.member.findMany({
       where: memberWhere,
       orderBy: { name: "asc" },
-      select: { id: true, name: true, phone: true },
+      include: { purchaseSplits: { select: { amount: true, paid: true } } },
     }),
-    prisma.purchase.aggregate({ _sum: { totalAmount: true } }),
-    prisma.purchaseSplit.groupBy({
-      by: ["memberId"],
-      where: { ...splitWhere, paid: true },
-      _sum: { amount: true },
-    }),
-    prisma.purchaseSplit.groupBy({
-      by: ["memberId"],
-      where: { ...splitWhere, paid: false },
-      _sum: { amount: true },
-    }),
+    prisma.purchase.findMany({ select: { totalAmount: true } }),
   ]);
 
-  const paidMap = new Map<string, number>();
-  for (const p of paidAgg) paidMap.set(p.memberId, p._sum.amount || 0);
-  const unpaidMap = new Map<string, number>();
-  for (const u of unpaidAgg) unpaidMap.set(u.memberId, u._sum.amount || 0);
+  let totalPurchaseValue = 0;
+  for (const p of purchases) totalPurchaseValue += p.totalAmount;
 
-  const balances = members.map((m) => {
-    const totalPaid = paidMap.get(m.id) || 0;
-    const totalDue = unpaidMap.get(m.id) || 0;
+  const balances = members.map((member) => {
+    let totalDue = 0;
+    let totalPaid = 0;
+    for (const s of member.purchaseSplits) {
+      if (s.paid) totalPaid += s.amount;
+      else totalDue += s.amount;
+    }
     return {
-      id: m.id,
-      name: m.name,
-      phone: m.phone,
+      id: member.id,
+      name: member.name,
+      phone: member.phone,
       totalDue,
       totalPaid,
       balance: totalDue,
@@ -162,7 +136,7 @@ async function handleBigTicket() {
     profile: "bigticket",
     balances,
     totals: {
-      totalPurchases: purchasesAgg._sum.totalAmount || 0,
+      totalPurchases: totalPurchaseValue,
       totalOutstanding,
       totalCollected,
       memberCount: members.length,

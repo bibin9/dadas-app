@@ -81,7 +81,17 @@
       "Bash(TURSO_DATABASE_URL=\"libsql://dadas-app-bibin.aws-ap-south-1.turso.io\" TURSO_AUTH_TOKEN=\"eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3NzYwMjQwNjUsImlkIjoiMDE5ZDdjOGMtNzAwMS03Mjg5LTk3MzItMzEwOTJjMTQ3ZTBmIiwicmlkIjoiNmFjYjM4NDgtZWY0My00YzFhLThiODAtMTA2NWY0MWE5ZWU2In0.IZ-AsANLB71CDlve4qa6onFC_vGzq3qDIRSaPnsG760h-B7uMbUk9_IOG2jb3pE_J4xxq_a7izT1Rt7lm08HDg\" JWT_SECRET=\"dadas-fc-jwt-secret-2024-secure\" npx next dev --port 3099)",
       "Bash(curl -s \"http://localhost:3099/api/dashboard?profile=bigticket\" -H \"Cookie: token=test\")",
       "Bash(node prisma/seed-turso.mjs)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(curl -s \"https://dadas-app.vercel.app/api/backup?token=dadas-backup-2026-secure\")",
+      "Bash(curl -s -I \"https://dadas-app.vercel.app\")",
+      "Bash(curl -s -I \"https://dadas-app.vercel.app/login\")",
+      "Bash(curl -s \"https://dadas-app.vercel.app/api/dashboard?profile=dadas\")",
+      "Bash(cd /tmp)",
+      "Bash(curl -s -c cookies.txt -X POST \"https://dadas-app.vercel.app/api/auth/login\" -H \"Content-Type: application/json\" -d '{\"username\":\"admin\",\"password\":\"admin123\"}')",
+      "Bash(curl -s -b cookies.txt \"https://dadas-app.vercel.app/api/dashboard?profile=dadas\")",
+      "Bash(curl -s -w \"\\\\nHTTP_STATUS:%{http_code}\\\\nTIME:%{time_total}s\\\\n\" -b cookies.txt \"https://dadas-app.vercel.app/api/dashboard?profile=dadas\")",
+      "Bash(curl -s -c /tmp/cookies.txt -X POST \"https://dadas-app.vercel.app/api/auth/login\" -H \"Content-Type: application/json\" -d '{\"username\":\"admin\",\"password\":\"admin123\"}')",
+      "Bash(curl -s -w \"STATUS:%{http_code} TIME:%{time_total}s\\\\n\" -b /tmp/cookies.txt \"https://dadas-app.vercel.app/api/dashboard?profile=dadas\")"
     ]
   }
 }

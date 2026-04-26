@@ -3,13 +3,11 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-// Combined endpoint: returns events, active members (with balances), settings, groups, templates
-// Supports ?limit=N to cap recent events for faster loads
 export async function GET(request: NextRequest) {
   const limitParam = request.nextUrl.searchParams.get("limit");
   const take = limitParam ? parseInt(limitParam, 10) : undefined;
 
-  const [events, members, settings, groups, templates, dueAgg, paidAgg] = await Promise.all([
+  const [events, members, settings, groups, templates, allDues, allPayments] = await Promise.all([
     prisma.event.findMany({
       orderBy: { date: "desc" },
       ...(take ? { take } : {}),
@@ -43,19 +41,15 @@ export async function GET(request: NextRequest) {
       include: { members: { include: { member: { select: { id: true, name: true } } } } },
     }),
     prisma.eventTemplate.findMany({ orderBy: { createdAt: "desc" } }),
-    prisma.eventDue.groupBy({ by: ["memberId"], _sum: { amount: true } }),
-    prisma.payment.groupBy({
-      by: ["memberId"],
-      where: { category: "dadas" },
-      _sum: { amount: true },
-    }),
+    prisma.eventDue.findMany({ select: { memberId: true, amount: true } }),
+    prisma.payment.findMany({ where: { category: "dadas" }, select: { memberId: true, amount: true } }),
   ]);
 
-  // Compute balances using SQL-side aggregation
+  // Compute member balances by aggregating in JS (libsql adapter compat)
   const dueMap = new Map<string, number>();
-  for (const d of dueAgg) dueMap.set(d.memberId, d._sum.amount || 0);
+  for (const d of allDues) dueMap.set(d.memberId, (dueMap.get(d.memberId) || 0) + d.amount);
   const paidMap = new Map<string, number>();
-  for (const p of paidAgg) paidMap.set(p.memberId, p._sum.amount || 0);
+  for (const p of allPayments) paidMap.set(p.memberId, (paidMap.get(p.memberId) || 0) + p.amount);
   const membersWithBalance = members.map((m) => {
     const totalDue = dueMap.get(m.id) || 0;
     const totalPaid = paidMap.get(m.id) || 0;
