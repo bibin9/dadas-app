@@ -72,31 +72,60 @@ function ReportsContent() {
 
   // WhatsApp share for single event with P&L
   function shareEventWhatsApp(ev: EventReport) {
-    const methodLabel = (m: string) => m === "bank_transfer" ? "Bank" : m === "company_contribution" ? "Company" : "Cash";
-    let msg = `*${ev.name}*\n`;
-    msg += `Date: ${formatDate(ev.date)}\n`;
-    msg += `Fee: ${formatAED(ev.perHeadFee)}/head | Players: ${ev.playerCount}\n`;
-    if (ev.totalCost > 0) msg += `Ground Cost: ${formatAED(ev.totalCost)}\n`;
-    msg += `Total Due: ${formatAED(ev.totalDue)} | Collected: ${formatAED(ev.totalPaid)} | Outstanding: ${formatAED(ev.outstanding)}\n`;
+    const isMatch = ev.type === "match";
+    const num = (n: number) => n.toFixed(2);
 
-    if (ev.totalIncome > 0 || ev.totalExpenses > 0) {
-      msg += `\n📊 *P&L Summary:*\n`;
-      msg += `  Contributions: ${formatAED(ev.totalPaid)}\n`;
-      if (ev.totalIncome > 0) msg += `  Income: ${formatAED(ev.totalIncome)}\n`;
-      if (ev.totalExpenses > 0) msg += `  Expenses: ${formatAED(ev.totalExpenses)}\n`;
-      if (ev.totalCost > 0) msg += `  Event Cost: ${formatAED(ev.totalCost)}\n`;
-      msg += `  *Net: ${ev.netPL >= 0 ? "+" : ""}${formatAED(ev.netPL)}*\n`;
+    // Column widths for the paid table
+    const allNames = [...ev.paidMembers, ...ev.unpaidMembers].map((m) => m.name);
+    const nameWidth = Math.min(Math.max(...allNames.map((n) => n.length), 6), 14);
+    const padName = (n: string) => {
+      const t = n.length > nameWidth ? n.slice(0, nameWidth - 1) + "…" : n;
+      return t.padEnd(nameWidth);
+    };
+    const padAmt = (s: string, w = 8) => s.padStart(w);
+
+    let msg = `${isMatch ? "⚽" : "📅"} *${ev.name}*\n`;
+    msg += `📅 ${formatDate(ev.date)}\n`;
+    msg += `💰 Fee: ${formatAED(ev.perHeadFee)}/head · 👥 ${ev.playerCount} players\n\n`;
+
+    // PAID table — show actual paid + extra column
+    if (ev.paidMembers.length > 0) {
+      msg += `✅ *Paid (${ev.paidCount})*\n`;
+      msg += "```\n";
+      msg += `${"PLAYER".padEnd(nameWidth)}${padAmt("PAID")}${padAmt("EXTRA", 9)}\n`;
+      msg += `${"─".repeat(nameWidth + 8 + 9)}\n`;
+      for (const m of ev.paidMembers) {
+        const diff = m.paidAmount - m.amount;
+        let extraCol = "—";
+        if (diff > 0.01) extraCol = `+${num(diff)}`;
+        else if (diff < -0.01) extraCol = `cr ${num(Math.abs(diff))}`;
+        msg += `${padName(m.name)}${padAmt(num(m.paidAmount))}${padAmt(extraCol, 9)}\n`;
+      }
+      msg += "```\n\n";
     }
 
-    msg += `\n`;
-    if (ev.paidMembers.length > 0) {
-      msg += `✅ *Paid (${ev.paidCount}):*\n`;
-      ev.paidMembers.forEach((m) => { msg += `  ${m.name} - ${formatAED(m.paidAmount)}${m.paidAmount !== m.amount ? ` (due: ${formatAED(m.amount)})` : ""} (${methodLabel(m.method || "cash")})\n`; });
+    // UNPAID list
+    if (ev.unpaidMembers.length > 0) {
+      msg += `❌ *Unpaid (${ev.unpaidCount})*\n`;
+      ev.unpaidMembers.forEach((m) => { msg += `• ${m.name} — ${formatAED(m.amount)}\n`; });
       msg += `\n`;
     }
+
+    // P&L Summary block (tabular)
+    const hasFinancials = ev.totalIncome > 0 || ev.totalExpenses > 0 || ev.totalCost > 0;
+    if (hasFinancials) {
+      msg += `📊 *P&L Summary*\n`;
+      msg += "```\n";
+      msg += `Contributions ${padAmt(num(ev.totalPaid), 10)}\n`;
+      if (ev.totalIncome > 0) msg += `Income        ${padAmt(num(ev.totalIncome), 10)}\n`;
+      if (ev.totalExpenses > 0) msg += `Expenses      ${padAmt(num(ev.totalExpenses), 10)}\n`;
+      if (ev.totalCost > 0) msg += `Ground Cost   ${padAmt(num(ev.totalCost), 10)}\n`;
+      msg += `${"─".repeat(24)}\n`;
+      msg += `Net P&L       ${padAmt((ev.netPL >= 0 ? "+" : "-") + num(Math.abs(ev.netPL)), 10)}\n`;
+      msg += "```\n";
+    }
+
     if (ev.unpaidMembers.length > 0) {
-      msg += `❌ *Unpaid (${ev.unpaidCount}):*\n`;
-      ev.unpaidMembers.forEach((m) => { msg += `  ${m.name} - ${formatAED(m.amount)}\n`; });
       msg += `\n_Please clear your dues at the earliest._`;
     }
     shareText(msg);
@@ -105,13 +134,29 @@ function ReportsContent() {
   // WhatsApp share for outstanding balances
   function shareOutstandingWhatsApp() {
     const totalOutstanding = outstandingReport.reduce((s, m) => s + m.balance, 0);
-    const title = profile === "dadas" ? "Outstanding Balances Report" : "Outstanding Purchase Dues";
-    let msg = `*${title}*\n`;
-    msg += `Total Outstanding: ${formatAED(totalOutstanding)}\n`;
-    msg += `Members with dues: ${outstandingReport.length}\n\n`;
+    const title = profile === "dadas" ? "Outstanding Balances" : "Outstanding Purchase Dues";
+    const num = (n: number) => n.toFixed(2);
+
+    const nameWidth = Math.min(Math.max(...outstandingReport.map((m) => m.name.length), 6), 14);
+    const padName = (n: string) => {
+      const t = n.length > nameWidth ? n.slice(0, nameWidth - 1) + "…" : n;
+      return t.padEnd(nameWidth);
+    };
+    const padAmt = (s: string, w = 9) => s.padStart(w);
+
+    let msg = `🔴 *${title}*\n`;
+    msg += `👥 ${outstandingReport.length} member${outstandingReport.length !== 1 ? "s" : ""} owe *${formatAED(totalOutstanding)}*\n\n`;
+
+    msg += "```\n";
+    msg += `#  ${"PLAYER".padEnd(nameWidth)}${padAmt("AMOUNT")}\n`;
+    msg += `${"─".repeat(3 + nameWidth + 9)}\n`;
     outstandingReport.forEach((m, i) => {
-      msg += `${i + 1}. ${m.name} - ${formatAED(m.balance)}\n`;
+      const idx = String(i + 1).padStart(2, " ") + " ";
+      msg += `${idx}${padName(m.name)}${padAmt(num(m.balance))}\n`;
     });
+    msg += `${"─".repeat(3 + nameWidth + 9)}\n`;
+    msg += `${"   "}${"TOTAL".padEnd(nameWidth)}${padAmt(num(totalOutstanding))}\n`;
+    msg += "```\n";
     msg += `\n_Please clear your dues at the earliest._`;
     shareText(msg);
   }

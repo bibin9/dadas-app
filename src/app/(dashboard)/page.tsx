@@ -128,10 +128,27 @@ export default function DashboardPage() {
               <p className="text-sm text-red-600">{owingMembers.length} member{owingMembers.length !== 1 ? "s" : ""} owe {formatAED(totals.totalOutstanding)}</p>
             </div>
             <button onClick={() => {
-              const title = isDadas ? "Outstanding Dues Report" : "Outstanding Purchase Dues";
-              let msg = `*${title}*\n`;
-              msg += `Total: ${formatAED(totals.totalOutstanding)}\n\n`;
-              owingMembers.sort((a, b) => b.balance - a.balance).forEach((m, i) => { msg += `${i + 1}. ${m.name} - ${formatAED(m.balance)}\n`; });
+              const title = isDadas ? "Outstanding Dues" : "Outstanding Purchase Dues";
+              const sorted = [...owingMembers].sort((a, b) => b.balance - a.balance);
+              const num = (n: number) => n.toFixed(2);
+              const nameWidth = Math.min(Math.max(...sorted.map((m) => m.name.length), 6), 14);
+              const padName = (n: string) => {
+                const t = n.length > nameWidth ? n.slice(0, nameWidth - 1) + "…" : n;
+                return t.padEnd(nameWidth);
+              };
+              const padAmt = (s: string, w = 9) => s.padStart(w);
+              let msg = `🔴 *${title}*\n`;
+              msg += `👥 ${sorted.length} member${sorted.length !== 1 ? "s" : ""} owe *${formatAED(totals.totalOutstanding)}*\n\n`;
+              msg += "```\n";
+              msg += `#  ${"PLAYER".padEnd(nameWidth)}${padAmt("AMOUNT")}\n`;
+              msg += `${"─".repeat(3 + nameWidth + 9)}\n`;
+              sorted.forEach((m, i) => {
+                const idx = String(i + 1).padStart(2, " ") + " ";
+                msg += `${idx}${padName(m.name)}${padAmt(num(m.balance))}\n`;
+              });
+              msg += `${"─".repeat(3 + nameWidth + 9)}\n`;
+              msg += `   ${"TOTAL".padEnd(nameWidth)}${padAmt(num(totals.totalOutstanding))}\n`;
+              msg += "```\n";
               msg += `\n_Please clear your dues at the earliest._`;
               shareText(msg);
             }} className="bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-green-700 flex-shrink-0">
