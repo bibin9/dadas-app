@@ -91,7 +91,8 @@
       "Bash(curl -s -b cookies.txt \"https://dadas-app.vercel.app/api/dashboard?profile=dadas\")",
       "Bash(curl -s -w \"\\\\nHTTP_STATUS:%{http_code}\\\\nTIME:%{time_total}s\\\\n\" -b cookies.txt \"https://dadas-app.vercel.app/api/dashboard?profile=dadas\")",
       "Bash(curl -s -c /tmp/cookies.txt -X POST \"https://dadas-app.vercel.app/api/auth/login\" -H \"Content-Type: application/json\" -d '{\"username\":\"admin\",\"password\":\"admin123\"}')",
-      "Bash(curl -s -w \"STATUS:%{http_code} TIME:%{time_total}s\\\\n\" -b /tmp/cookies.txt \"https://dadas-app.vercel.app/api/dashboard?profile=dadas\")"
+      "Bash(curl -s -w \"STATUS:%{http_code} TIME:%{time_total}s\\\\n\" -b /tmp/cookies.txt \"https://dadas-app.vercel.app/api/dashboard?profile=dadas\")",
+      "Bash(npx netlify-cli *)"
     ]
   }
 }

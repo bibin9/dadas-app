@@ -47,3 +47,6 @@ next-env.d.ts
 *.db-journal
 
 .vercel
+
+# Local Netlify folder
+.netlify

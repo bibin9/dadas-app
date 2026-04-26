@@ -67,8 +67,13 @@ async function pushToGithub(snapshot: object) {
   const branch = process.env.GITHUB_BACKUP_BRANCH || "main";
   if (!repo || !token) return { uploaded: false, reason: "GITHUB_BACKUP_REPO or GITHUB_TOKEN not set" };
 
-  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-  const path = `backups/${today}.json`;
+  // Weekly backup file path: backups/2026-W17.json (ISO week number)
+  const now = new Date();
+  const isoWeek = getIsoWeek(now);
+  const today = now.toISOString().slice(0, 10);
+  const path = `backups/${now.getUTCFullYear()}-W${String(isoWeek).padStart(2, "0")}.json`;
+  // Also keep an "always-latest" pointer for easy fetch
+  const latestPath = `backups/latest.json`;
   const url = `https://api.github.com/repos/${repo}/contents/${path}`;
   const content = Buffer.from(JSON.stringify(snapshot, null, 2)).toString("base64");
 
@@ -104,7 +109,43 @@ async function pushToGithub(snapshot: object) {
     const t = await resp.text();
     return { uploaded: false, reason: `GitHub API ${resp.status}: ${t.slice(0, 200)}` };
   }
+
+  // Also update latest.json (always-overwritten pointer to most recent backup)
+  try {
+    const latestUrl = `https://api.github.com/repos/${repo}/contents/${latestPath}`;
+    let latestSha: string | undefined;
+    const existing = await fetch(`${latestUrl}?ref=${branch}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" },
+    });
+    if (existing.ok) latestSha = (await existing.json()).sha;
+    const latestBody: Record<string, string> = {
+      message: `Backup ${today} (latest)`,
+      content,
+      branch,
+    };
+    if (latestSha) latestBody.sha = latestSha;
+    await fetch(latestUrl, {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github+json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(latestBody),
+    });
+  } catch { /* non-fatal */ }
+
   return { uploaded: true, path };
+}
+
+// ISO 8601 week number (1-53). Sunday belongs to the previous week's Sat.
+function getIsoWeek(d: Date): number {
+  const target = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const dayNr = (target.getUTCDay() + 6) % 7; // Mon=0..Sun=6
+  target.setUTCDate(target.getUTCDate() - dayNr + 3);
+  const firstThursday = new Date(Date.UTC(target.getUTCFullYear(), 0, 4));
+  const diff = (target.getTime() - firstThursday.getTime()) / 86400000;
+  return 1 + Math.round((diff - 3 + ((firstThursday.getUTCDay() + 6) % 7)) / 7);
 }
 
 function isAuthorized(req: NextRequest): boolean {
