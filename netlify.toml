@@ -1,0 +1,10 @@
+[build]
+  command = "npx prisma generate && npx next build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# Netlify's official Next.js plugin handles routing, ISR, server functions
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
