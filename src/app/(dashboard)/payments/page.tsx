@@ -162,6 +162,7 @@ export default function PaymentsPage() {
       case "cash": return "Cash";
       case "bank_transfer": return "Bank Transfer";
       case "company_contribution": return "Company";
+      case "credit": return "Credit";
       default: return m;
     }
   };
@@ -170,6 +171,7 @@ export default function PaymentsPage() {
       case "cash": return "bg-amber-100 text-amber-800";
       case "bank_transfer": return "bg-blue-100 text-blue-800";
       case "company_contribution": return "bg-purple-100 text-purple-800";
+      case "credit": return "bg-emerald-100 text-emerald-800";
       default: return "bg-gray-100 text-gray-800";
     }
   };

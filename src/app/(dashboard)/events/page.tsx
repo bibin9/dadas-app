@@ -95,7 +95,16 @@ export default function EventsPage() {
   function initAllPlayers() { const map: Record<string, PlayerPayment> = {}; members.forEach((m) => { map[m.id] = { playing: true, paid: false, method: "cash" }; }); setPlayerPayments(map); }
   function togglePlaying(id: string) { setPlayerPayments((p) => ({ ...p, [id]: { ...p[id], playing: !p[id]?.playing, paid: p[id]?.playing ? false : p[id]?.paid } })); }
   function togglePaid(id: string) { setPlayerPayments((p) => ({ ...p, [id]: { ...p[id], paid: !p[id]?.paid } })); }
-  function setMethod(id: string, m: string) { setPlayerPayments((p) => ({ ...p, [id]: { ...p[id], method: m } })); }
+  function setMethod(id: string, m: string) {
+    setPlayerPayments((p) => {
+      const next = { ...p[id], method: m };
+      // When "credit" is selected, customAmount goes to 0 (existing credit covers the fee).
+      // When switching back to cash/bank, clear customAmount so default fee applies.
+      if (m === "credit") next.customAmount = "0";
+      else if (p[id]?.method === "credit") next.customAmount = undefined;
+      return { ...p, [id]: next };
+    });
+  }
   function markAllPaid() { setPlayerPayments((p) => { const u = { ...p }; Object.keys(u).forEach((id) => { if (u[id].playing) u[id] = { ...u[id], paid: true }; }); return u; }); }
   function markAllUnpaid() { setPlayerPayments((p) => { const u = { ...p }; Object.keys(u).forEach((id) => { u[id] = { ...u[id], paid: false }; }); return u; }); }
 
@@ -262,17 +271,39 @@ export default function EventsPage() {
       msg += `\n`;
     }
 
+    // Method breakdown: cash in hand / bank transfer / credit applied
+    let cashTotal = 0;
+    let bankTotal = 0;
+    let creditApplied = 0;
+    for (const p of payments) {
+      if (p.method === "credit") {
+        // Credit method: amount stored is 0; the credit "applied" is the player's due for this match
+        const due = event.dues.find((d) => d.member.id === p.member.id);
+        if (due) creditApplied += due.amount;
+      } else if (p.method === "bank_transfer") {
+        bankTotal += p.amount;
+      } else {
+        cashTotal += p.amount;
+      }
+    }
+
     // Day Summary block
     msg += `📊 *Day Summary*\n`;
     msg += "```\n";
-    msg += `Collected   ${padAmt(num(totalCollected), 10)}\n`;
+    msg += `Cash         ${padAmt(num(cashTotal), 10)}\n`;
+    msg += `Bank         ${padAmt(num(bankTotal), 10)}\n`;
+    if (creditApplied > 0.01) {
+      msg += `Credit Used  ${padAmt(num(creditApplied), 10)}\n`;
+    }
+    msg += `${"─".repeat(22)}\n`;
+    msg += `Collected    ${padAmt(num(totalCollected), 10)}\n`;
     if (totalExtras > 0.01) {
-      msg += `Extras      ${padAmt(num(totalExtras), 10)}\n`;
+      msg += `Extras       ${padAmt(num(totalExtras), 10)}\n`;
     }
     if (event.totalCost > 0) {
       const surplus = totalCollected - event.totalCost;
-      msg += `Ground      ${padAmt(num(event.totalCost), 10)}\n`;
-      msg += `${surplus >= 0 ? "Surplus    " : "Deficit    "} ${padAmt(num(Math.abs(surplus)), 10)}\n`;
+      msg += `Ground       ${padAmt(num(event.totalCost), 10)}\n`;
+      msg += `${surplus >= 0 ? "Surplus     " : "Deficit     "} ${padAmt(num(Math.abs(surplus)), 10)}\n`;
     }
     msg += "```";
 
@@ -378,7 +409,15 @@ export default function EventsPage() {
                       {pp.playing && (
                         <div className="flex items-center gap-1.5 flex-shrink-0">
                           <button type="button" onClick={() => togglePaid(m.id)} className={`px-2.5 py-1 rounded-lg text-xs font-semibold border ${pp.paid ? "bg-emerald-600 border-emerald-600 text-white" : "bg-white border-red-300 text-red-600"}`}>{pp.paid ? "Paid" : "Unpaid"}</button>
-                          {pp.paid && (<select value={pp.method} onChange={(e) => setMethod(m.id, e.target.value)} className="text-xs px-1.5 py-1 border border-gray-300 rounded-lg text-gray-800 font-medium"><option value="cash">Cash</option><option value="bank_transfer">Bank</option></select>)}
+                          {pp.paid && (
+                            <select value={pp.method} onChange={(e) => setMethod(m.id, e.target.value)} className="text-xs px-1.5 py-1 border border-gray-300 rounded-lg text-gray-800 font-medium">
+                              <option value="cash">Cash</option>
+                              <option value="bank_transfer">Bank</option>
+                              {bal < 0 && Math.abs(bal) >= parseFloat(matchFee || "0") && (
+                                <option value="credit">Credit ({formatAED(Math.abs(bal))})</option>
+                              )}
+                            </select>
+                          )}
                         </div>
                       )}
                     </div>

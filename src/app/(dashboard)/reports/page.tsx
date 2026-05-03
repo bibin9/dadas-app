@@ -111,10 +111,39 @@ function ReportsContent() {
       msg += `\n`;
     }
 
-    // P&L Summary block (tabular)
-    const hasFinancials = ev.totalIncome > 0 || ev.totalExpenses > 0 || ev.totalCost > 0;
+    // Method breakdown: cash / bank / credit applied
+    let cashTotal = 0;
+    let bankTotal = 0;
+    let creditApplied = 0;
+    for (const m of ev.paidMembers) {
+      if (m.method === "credit") creditApplied += m.amount; // credit covers the fee
+      else if (m.method === "bank_transfer") bankTotal += m.paidAmount;
+      else cashTotal += m.paidAmount;
+    }
+
+    // Day Summary block (always shown for matches)
+    if (isMatch) {
+      msg += `📊 *Day Summary*\n`;
+      msg += "```\n";
+      msg += `Cash         ${padAmt(num(cashTotal), 10)}\n`;
+      msg += `Bank         ${padAmt(num(bankTotal), 10)}\n`;
+      if (creditApplied > 0.01) {
+        msg += `Credit Used  ${padAmt(num(creditApplied), 10)}\n`;
+      }
+      msg += `${"─".repeat(22)}\n`;
+      msg += `Collected    ${padAmt(num(ev.totalPaid), 10)}\n`;
+      if (ev.totalCost > 0) {
+        const surplus = ev.totalPaid - ev.totalCost;
+        msg += `Ground       ${padAmt(num(ev.totalCost), 10)}\n`;
+        msg += `${surplus >= 0 ? "Surplus     " : "Deficit     "} ${padAmt(num(Math.abs(surplus)), 10)}\n`;
+      }
+      msg += "```\n";
+    }
+
+    // P&L Summary block (only for events with income/expenses, less common for matches)
+    const hasFinancials = ev.totalIncome > 0 || ev.totalExpenses > 0 || (!isMatch && ev.totalCost > 0);
     if (hasFinancials) {
-      msg += `📊 *P&L Summary*\n`;
+      msg += `\n📊 *P&L Summary*\n`;
       msg += "```\n";
       msg += `Contributions ${padAmt(num(ev.totalPaid), 10)}\n`;
       if (ev.totalIncome > 0) msg += `Income        ${padAmt(num(ev.totalIncome), 10)}\n`;
