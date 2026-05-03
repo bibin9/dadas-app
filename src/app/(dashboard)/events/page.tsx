@@ -48,6 +48,9 @@ export default function EventsPage() {
   const [matchCost, setMatchCost] = useState("");
   const [matchNotes, setMatchNotes] = useState("");
   const [playerPayments, setPlayerPayments] = useState<Record<string, PlayerPayment>>({});
+  // Saved payments at the time of opening edit form — used to compute pre-match
+  // credit balance (so the Credit option still shows even after a credit-paid match was saved)
+  const [originalPayments, setOriginalPayments] = useState<Record<string, EventPayment>>({});
   const [guestNames, setGuestNames] = useState<string[]>([]);
   const [matchSearch, setMatchSearch] = useState("");
   const [groups, setGroups] = useState<MemberGroup[]>([]);
@@ -75,7 +78,7 @@ export default function EventsPage() {
       setMatchDate(new Date().toISOString().split("T")[0]);
       setMatchFee(tpl.amountType === "perhead" && tpl.amount > 0 ? String(tpl.amount) : String(settings.defaultMatchFee || 20));
       setMatchCost(tpl.amountType === "total" && tpl.amount > 0 ? String(tpl.amount) : "");
-      setMatchNotes(tpl.notes); setGuestNames([]); setMatchSearch("");
+      setMatchNotes(tpl.notes); setGuestNames([]); setMatchSearch(""); setOriginalPayments({});
       const map: Record<string, PlayerPayment> = {};
       members.forEach((m) => { map[m.id] = { playing: groupMemberIds.includes(m.id), paid: false, method: "cash" }; });
       setPlayerPayments(map);
@@ -132,7 +135,7 @@ export default function EventsPage() {
         customAmount: existing && existing.amount !== ev.perHeadFee ? String(existing.amount) : undefined,
       };
     });
-    setPlayerPayments(map); setGuestNames([]); setMatchSearch("");
+    setPlayerPayments(map); setOriginalPayments(payByMember); setGuestNames([]); setMatchSearch("");
   }
 
   const eventPerHead = selectedMembers.length > 0 && eventTotalCost ? parseFloat(eventTotalCost) / selectedMembers.length : 0;
@@ -343,7 +346,7 @@ export default function EventsPage() {
               {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
           )}
-          <button onClick={() => { setShowMatchForm(!showMatchForm); setShowForm(false); setEditingEvent(null); if (!showMatchForm) { initAllPlayers(); setGuestNames([]); setMatchSearch(""); } }}
+          <button onClick={() => { setShowMatchForm(!showMatchForm); setShowForm(false); setEditingEvent(null); setOriginalPayments({}); if (!showMatchForm) { initAllPlayers(); setGuestNames([]); setMatchSearch(""); } }}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-medium text-sm">
             {showMatchForm && !editingEvent ? "Cancel" : "Quick Match"}
           </button>
@@ -389,19 +392,34 @@ export default function EventsPage() {
               <div className="bg-white rounded-lg border border-gray-200 divide-y max-h-[400px] overflow-y-auto">
                 {matchFilteredMembers.map((m) => {
                   const pp = playerPayments[m.id] || { playing: false, paid: false, method: "cash" };
+                  const fee = parseFloat(matchFee || "0");
                   const bal = m.balance ?? 0;
+                  // When editing a saved match where this player used credit, the member's
+                  // current balance already reflects the credit being used. Add the fee back
+                  // to surface the player's PRE-MATCH credit so the option still appears.
+                  const original = originalPayments[m.id];
+                  const wasOnCredit = original?.method === "credit";
+                  const preMatchCredit = wasOnCredit ? Math.abs(bal) + fee : Math.abs(bal);
+                  // Show "Credit (X)" option if the player has (or had) enough credit to cover the fee
+                  const canUseCredit = preMatchCredit >= fee && fee > 0 && (bal < 0 || wasOnCredit);
+                  // What credit balance to display under the player's name
+                  const displayCredit = wasOnCredit ? preMatchCredit : Math.abs(bal);
                   return (
                     <div key={m.id} className={`flex items-center gap-3 px-3 py-2.5 ${pp.playing ? "bg-white" : "bg-gray-50"}`}>
                       <button type="button" onClick={() => togglePlaying(m.id)} className={`w-7 h-7 rounded-full border-2 flex items-center justify-center text-xs font-bold flex-shrink-0 ${pp.playing ? "bg-blue-600 border-blue-600 text-white" : "bg-white border-gray-300 text-gray-300"}`}>{pp.playing ? "✓" : ""}</button>
                       <div className="flex-1 min-w-0">
                         <span className={`font-semibold text-sm truncate block ${pp.playing ? "text-gray-900" : "text-gray-400 line-through"}`}>{m.name}</span>
-                        {Math.abs(bal) >= 0.01 && (
-                          <span className={`text-xs font-medium ${bal > 0 ? "text-red-600" : "text-emerald-600"}`}>
-                            {bal > 0 ? `Owes ${formatAED(bal)}` : `Credit ${formatAED(Math.abs(bal))}`}
-                          </span>
+                        {bal > 0.01 && (
+                          <span className="text-xs font-medium text-red-600">Owes {formatAED(bal)}</span>
+                        )}
+                        {bal < -0.01 && (
+                          <span className="text-xs font-medium text-emerald-600">Credit {formatAED(Math.abs(bal))}</span>
+                        )}
+                        {wasOnCredit && Math.abs(bal) < 0.01 && (
+                          <span className="text-xs font-medium text-emerald-600">Credit applied {formatAED(fee)}</span>
                         )}
                       </div>
-                      {pp.playing && !pp.paid && <span className="text-sm font-medium flex-shrink-0 text-gray-800">{formatAED(parseFloat(matchFee || "0"))}</span>}
+                      {pp.playing && !pp.paid && <span className="text-sm font-medium flex-shrink-0 text-gray-800">{formatAED(fee)}</span>}
                       {pp.playing && pp.paid && (
                         <input type="number" step="0.01" value={pp.customAmount ?? ""} onChange={(e) => setPlayerPayments((p) => ({ ...p, [m.id]: { ...p[m.id], customAmount: e.target.value } }))}
                           placeholder={matchFee || "0"} className="w-16 text-sm text-right px-1.5 py-1 border border-emerald-300 rounded-lg text-gray-800 font-medium flex-shrink-0" />
@@ -413,8 +431,8 @@ export default function EventsPage() {
                             <select value={pp.method} onChange={(e) => setMethod(m.id, e.target.value)} className="text-xs px-1.5 py-1 border border-gray-300 rounded-lg text-gray-800 font-medium">
                               <option value="cash">Cash</option>
                               <option value="bank_transfer">Bank</option>
-                              {bal < 0 && Math.abs(bal) >= parseFloat(matchFee || "0") && (
-                                <option value="credit">Credit ({formatAED(Math.abs(bal))})</option>
+                              {canUseCredit && (
+                                <option value="credit">Credit ({formatAED(displayCredit)})</option>
                               )}
                             </select>
                           )}
