@@ -123,17 +123,18 @@ function ReportsContent() {
 
     // Day Summary block (always shown for matches)
     if (isMatch) {
+      const collectedTotal = cashTotal + bankTotal + creditApplied;
       msg += `📊 *Day Summary*\n`;
       msg += "```\n";
       msg += `Cash         ${padAmt(num(cashTotal), 10)}\n`;
       msg += `Bank         ${padAmt(num(bankTotal), 10)}\n`;
       if (creditApplied > 0.01) {
-        msg += `Credit Used  ${padAmt(num(creditApplied), 10)}\n`;
+        msg += `From Credit  ${padAmt(num(creditApplied), 10)}\n`;
       }
       msg += `${"─".repeat(22)}\n`;
-      msg += `Collected    ${padAmt(num(ev.totalPaid), 10)}\n`;
+      msg += `Collected    ${padAmt(num(collectedTotal), 10)}\n`;
       if (ev.totalCost > 0) {
-        const surplus = ev.totalPaid - ev.totalCost;
+        const surplus = collectedTotal - ev.totalCost;
         msg += `Ground       ${padAmt(num(ev.totalCost), 10)}\n`;
         msg += `${surplus >= 0 ? "Surplus     " : "Deficit     "} ${padAmt(num(Math.abs(surplus)), 10)}\n`;
       }
