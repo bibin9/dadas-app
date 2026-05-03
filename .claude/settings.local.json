@@ -105,7 +105,9 @@
       "Bash(curl -sw \"STATUS:%{http_code}\\\\n\" \"https://dadas-app.vercel.app/api/backup?token=dadas-backup-2026-secure\")",
       "Bash(curl -s -c /tmp/c.txt -X POST \"https://dadas-app.vercel.app/api/auth/login\" -H \"Content-Type: application/json\" -d '{\"username\":\"admin\",\"password\":\"admin123\"}')",
       "Bash(curl -s -b /tmp/c.txt \"https://dadas-app.vercel.app/api/dashboard?profile=dadas\")",
-      "Bash(curl -sw \"STATUS:%{http_code}\\\\n\" -b /tmp/c.txt \"https://dadas-app.vercel.app/api/dashboard?profile=dadas\")"
+      "Bash(curl -sw \"STATUS:%{http_code}\\\\n\" -b /tmp/c.txt \"https://dadas-app.vercel.app/api/dashboard?profile=dadas\")",
+      "Bash(curl -sw \"STATUS:%{http_code} TIME:%{time_total}s\\\\n\" -I \"https://dadas-app-dr.netlify.app\")",
+      "Bash(curl -sw \"STATUS:%{http_code}\\\\n\" \"https://dadas-app-dr.netlify.app/login\")"
     ]
   }
 }

@@ -59,12 +59,9 @@ export default function DashboardPage() {
     return () => ctrl.abort();
   }, [profile]);
 
-  if (!data || data.profile !== profile) return <div className="text-gray-700 font-medium p-4">Loading...</div>;
-
-  const { balances, totals } = data;
-
-  // Memoize the 3 derived lists — only recompute when balances actually change.
-  // Owing members are pre-sorted DESC so JSX doesn't re-sort on every render.
+  // Memoize derived lists. MUST be called before any early return (Rules of Hooks).
+  // Handles null data gracefully so hook order stays stable across renders.
+  const balances = data?.balances ?? [];
   const { owingMembers, creditMembers, settledMembers } = useMemo(() => {
     const owing: typeof balances = [];
     const credit: typeof balances = [];
@@ -84,6 +81,10 @@ export default function DashboardPage() {
     if (balanceFilter === "settled") return settledMembers;
     return balances;
   }, [balanceFilter, owingMembers, creditMembers, settledMembers, balances]);
+
+  if (!data || data.profile !== profile) return <div className="text-gray-700 font-medium p-4">Loading...</div>;
+
+  const { totals } = data;
 
   async function shareText(text: string) {
     if (navigator.share) {
