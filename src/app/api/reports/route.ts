@@ -155,30 +155,15 @@ async function handleDadas() {
     eventReports,
     outstandingReport,
     groupName: settings?.groupName || "Company",
-  });
+  }, { headers: { "Cache-Control": "private, max-age=10, stale-while-revalidate=60" } });
 }
 
 async function handleBigTicket() {
-  const settings = await prisma.settings.findUnique({ where: { id: "main" } });
-  const bigTicketGroupId = settings?.bigTicketGroupId || "";
-
-  let memberIds: string[] | null = null;
-  if (bigTicketGroupId) {
-    const groupMembers = await prisma.memberGroupMember.findMany({
-      where: { groupId: bigTicketGroupId },
-      select: { memberId: true },
-    });
-    memberIds = groupMembers.map((gm) => gm.memberId);
-  }
-
-  const memberWhere = memberIds
-    ? { active: true as const, id: { in: memberIds } }
-    : { active: true as const };
-  const splitWhere = memberIds ? { memberId: { in: memberIds }, paid: false } : { paid: false };
-
-  const [members, purchases, unpaidSplits] = await Promise.all([
+  // Parallelize all queries — locally filter Big Ticket group members
+  const [settings, allMembers, purchases, allUnpaidSplits, allGroupLinks] = await Promise.all([
+    prisma.settings.findUnique({ where: { id: "main" } }),
     prisma.member.findMany({
-      where: memberWhere,
+      where: { active: true },
       orderBy: { name: "asc" },
       select: { id: true, name: true, phone: true },
     }),
@@ -186,8 +171,20 @@ async function handleBigTicket() {
       orderBy: { date: "desc" },
       select: { id: true, description: true, date: true, totalAmount: true },
     }),
-    prisma.purchaseSplit.findMany({ where: splitWhere, select: { memberId: true, amount: true } }),
+    prisma.purchaseSplit.findMany({ where: { paid: false }, select: { memberId: true, amount: true } }),
+    prisma.memberGroupMember.findMany({ select: { memberId: true, groupId: true } }),
   ]);
+
+  const bigTicketGroupId = settings?.bigTicketGroupId || "";
+  let members = allMembers;
+  let unpaidSplits = allUnpaidSplits;
+  if (bigTicketGroupId) {
+    const memberIds = new Set(
+      allGroupLinks.filter((g) => g.groupId === bigTicketGroupId).map((g) => g.memberId)
+    );
+    members = allMembers.filter((m) => memberIds.has(m.id));
+    unpaidSplits = allUnpaidSplits.filter((s) => memberIds.has(s.memberId));
+  }
 
   const purchaseReports = purchases.map((p) => ({
     id: p.id,
@@ -212,5 +209,5 @@ async function handleBigTicket() {
     purchaseReports,
     outstandingReport,
     groupName: settings?.groupName || "Company",
-  });
+  }, { headers: { "Cache-Control": "private, max-age=10, stale-while-revalidate=60" } });
 }

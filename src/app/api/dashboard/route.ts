@@ -3,6 +3,10 @@ import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
+// Per-user cache: max-age=5s in-browser + 30s stale-while-revalidate.
+// Reduces hammering Turso when a user navigates back/forth quickly.
+const CACHE_HEADERS = { "Cache-Control": "private, max-age=5, stale-while-revalidate=30" };
+
 export async function GET(request: NextRequest) {
   const profile = request.nextUrl.searchParams.get("profile") || "dadas";
   if (profile === "bigticket") return handleBigTicket();
@@ -76,34 +80,31 @@ async function handleDadas() {
       memberCount: members.length,
       groupName: settings?.groupName || "Company",
     },
-  });
+  }, { headers: CACHE_HEADERS });
 }
 
 async function handleBigTicket() {
-  const settings = await prisma.settings.findUnique({ where: { id: "main" } });
-  const bigTicketGroupId = settings?.bigTicketGroupId || "";
-
-  let memberIds: string[] | null = null;
-  if (bigTicketGroupId) {
-    const groupMembers = await prisma.memberGroupMember.findMany({
-      where: { groupId: bigTicketGroupId },
-      select: { memberId: true },
-    });
-    memberIds = groupMembers.map((gm) => gm.memberId);
-  }
-
-  const memberWhere = memberIds
-    ? { active: true as const, id: { in: memberIds } }
-    : { active: true as const };
-
-  const [members, purchases] = await Promise.all([
+  // Parallelize: settings + all-members + purchases all in parallel.
+  // We then locally filter members by Big Ticket group instead of a 2nd round-trip.
+  const [settings, allMembers, purchases, allGroupLinks] = await Promise.all([
+    prisma.settings.findUnique({ where: { id: "main" } }),
     prisma.member.findMany({
-      where: memberWhere,
+      where: { active: true },
       orderBy: { name: "asc" },
       include: { purchaseSplits: { select: { amount: true, paid: true } } },
     }),
     prisma.purchase.findMany({ select: { totalAmount: true } }),
+    prisma.memberGroupMember.findMany({ select: { memberId: true, groupId: true } }),
   ]);
+
+  const bigTicketGroupId = settings?.bigTicketGroupId || "";
+  let members = allMembers;
+  if (bigTicketGroupId) {
+    const memberIds = new Set(
+      allGroupLinks.filter((g) => g.groupId === bigTicketGroupId).map((g) => g.memberId)
+    );
+    members = allMembers.filter((m) => memberIds.has(m.id));
+  }
 
   let totalPurchaseValue = 0;
   for (const p of purchases) totalPurchaseValue += p.totalAmount;
@@ -142,5 +143,5 @@ async function handleBigTicket() {
       memberCount: members.length,
       groupName: settings?.groupName || "Company",
     },
-  });
+  }, { headers: CACHE_HEADERS });
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatAED } from "@/lib/format";
 import { useProfile } from "@/lib/profile-context";
@@ -63,14 +63,27 @@ export default function DashboardPage() {
 
   const { balances, totals } = data;
 
-  const owingMembers = balances.filter((b) => b.balance > 0);
-  const creditMembers = balances.filter((b) => b.balance < 0);
-  const settledMembers = balances.filter((b) => b.balance === 0 && (b.totalDue > 0 || b.totalPaid > 0));
+  // Memoize the 3 derived lists — only recompute when balances actually change.
+  // Owing members are pre-sorted DESC so JSX doesn't re-sort on every render.
+  const { owingMembers, creditMembers, settledMembers } = useMemo(() => {
+    const owing: typeof balances = [];
+    const credit: typeof balances = [];
+    const settled: typeof balances = [];
+    for (const b of balances) {
+      if (b.balance > 0) owing.push(b);
+      else if (b.balance < 0) credit.push(b);
+      else if (b.totalDue > 0 || b.totalPaid > 0) settled.push(b);
+    }
+    owing.sort((a, b) => b.balance - a.balance);
+    return { owingMembers: owing, creditMembers: credit, settledMembers: settled };
+  }, [balances]);
 
-  const filteredBalances = balanceFilter === "dues" ? owingMembers
-    : balanceFilter === "credits" ? creditMembers
-    : balanceFilter === "settled" ? settledMembers
-    : balances;
+  const filteredBalances = useMemo(() => {
+    if (balanceFilter === "dues") return owingMembers;
+    if (balanceFilter === "credits") return creditMembers;
+    if (balanceFilter === "settled") return settledMembers;
+    return balances;
+  }, [balanceFilter, owingMembers, creditMembers, settledMembers, balances]);
 
   async function shareText(text: string) {
     if (navigator.share) {
@@ -129,7 +142,7 @@ export default function DashboardPage() {
             </div>
             <button onClick={() => {
               const title = isDadas ? "Outstanding Dues" : "Outstanding Purchase Dues";
-              const sorted = [...owingMembers].sort((a, b) => b.balance - a.balance);
+              const sorted = owingMembers; // already sorted DESC by balance
               const num = (n: number) => n.toFixed(2);
               const nameWidth = Math.min(Math.max(...sorted.map((m) => m.name.length), 6), 14);
               const padName = (n: string) => {
@@ -156,7 +169,7 @@ export default function DashboardPage() {
             </button>
           </div>
           <div className="divide-y">
-            {owingMembers.sort((a, b) => b.balance - a.balance).map((m, i) => (
+            {owingMembers.map((m, i) => (
               <div key={m.id} className="px-4 md:px-6 py-2.5 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-gray-500 w-5">{i + 1}.</span>

@@ -62,5 +62,5 @@ export async function GET(request: NextRequest) {
     settings: settings || { defaultMatchFee: 20, groupName: "Company" },
     groups,
     templates,
-  });
+  }, { headers: { "Cache-Control": "private, max-age=5, stale-while-revalidate=30" } });
 }

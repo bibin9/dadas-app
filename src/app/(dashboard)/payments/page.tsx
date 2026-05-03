@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatAED, formatDate } from "@/lib/format";
 import { useProfile } from "@/lib/profile-context";
 
@@ -146,7 +146,7 @@ export default function PaymentsPage() {
     }
   }
 
-  const filteredPayments = payments.filter((p) => {
+  const filteredPayments = useMemo(() => payments.filter((p) => {
     if (filterMember && p.member.id !== filterMember) return false;
     const pDate = p.date.split("T")[0];
     if (filterDateFrom && pDate < filterDateFrom) return false;
@@ -154,8 +154,8 @@ export default function PaymentsPage() {
     if (filterEvent === "_general" && p.event) return false;
     if (filterEvent && filterEvent !== "_general" && p.event?.id !== filterEvent) return false;
     return true;
-  });
-  const filteredSum = filteredPayments.reduce((s, p) => s + p.amount, 0);
+  }), [payments, filterMember, filterDateFrom, filterDateTo, filterEvent]);
+  const filteredSum = useMemo(() => filteredPayments.reduce((s, p) => s + p.amount, 0), [filteredPayments]);
 
   const methodLabel = (m: string) => {
     switch (m) {

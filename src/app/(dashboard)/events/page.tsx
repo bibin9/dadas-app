@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatAED, formatDate } from "@/lib/format";
 
 interface Member { id: string; name: string; isGuest?: boolean; balance?: number }
@@ -332,8 +332,16 @@ export default function EventsPage() {
   const matchCollected = totalPlayers * parseFloat(matchFee || "0");
   const matchActualCost = parseFloat(matchCost || "0");
   const matchSurplus = matchCollected - matchActualCost;
-  const matchFilteredMembers = matchSearch ? members.filter((m) => m.name.toLowerCase().includes(matchSearch.toLowerCase())) : members;
-  const eventFilteredMembers = eventSearch ? members.filter((m) => m.name.toLowerCase().includes(eventSearch.toLowerCase())) : members;
+  const matchFilteredMembers = useMemo(() => {
+    if (!matchSearch) return members;
+    const q = matchSearch.toLowerCase();
+    return members.filter((m) => m.name.toLowerCase().includes(q));
+  }, [members, matchSearch]);
+  const eventFilteredMembers = useMemo(() => {
+    if (!eventSearch) return members;
+    const q = eventSearch.toLowerCase();
+    return members.filter((m) => m.name.toLowerCase().includes(q));
+  }, [members, eventSearch]);
 
   return (
     <div>
