@@ -603,21 +603,41 @@ export default function EventsPage() {
                                 <span className="text-sm font-medium text-gray-900">{d.member.name}{d.member.isGuest ? " (guest)" : ""}</span>
                               </div>
                               <div className="flex items-center gap-2">
-                                <span className="text-sm font-semibold text-red-600">{formatAED(d.amount)}</span>
-                                {inlinePayMemberId === d.member.id ? (
-                                  <div className="flex items-center gap-1.5 flex-wrap">
-                                    <input type="number" step="0.01" value={inlinePayAmount} onChange={(e) => setInlinePayAmount(e.target.value)}
-                                      placeholder={String(d.amount)} className="w-16 text-xs px-1.5 py-1 border rounded-lg text-gray-800 text-right" />
-                                    <select value={inlinePayMethod} onChange={(e) => setInlinePayMethod(e.target.value)} className="text-xs px-1.5 py-1 border rounded-lg text-gray-800">
-                                      <option value="cash">Cash</option>
-                                      <option value="bank_transfer">Bank</option>
-                                    </select>
-                                    <button disabled={inlinePaySubmitting} onClick={() => recordInlinePayment(event.id, d.member.id, d.amount, event.date)} className="bg-emerald-600 text-white text-xs px-2.5 py-1 rounded-lg font-semibold disabled:opacity-50">{inlinePaySubmitting ? "..." : "Pay"}</button>
-                                    <button onClick={() => { setInlinePayMemberId(null); setInlinePayAmount(""); }} className="text-gray-500 text-xs px-1.5 py-1">X</button>
-                                  </div>
-                                ) : (
-                                  <button onClick={() => { setInlinePayMemberId(d.member.id); setInlinePayMethod("cash"); setInlinePayAmount(""); }} className="bg-emerald-600 text-white text-xs px-2.5 py-1 rounded-lg font-semibold">Mark Paid</button>
-                                )}
+                                {(() => {
+                                  const memberRecord = members.find((mm) => mm.id === d.member.id);
+                                  const memberBal = memberRecord?.balance ?? 0;
+                                  const hasEnoughCredit = memberBal < 0 && Math.abs(memberBal) >= d.amount;
+                                  return (
+                                    <>
+                                      <span className="text-sm font-semibold text-red-600">{formatAED(d.amount)}</span>
+                                      {memberBal < -0.01 && (
+                                        <span className="text-xs font-semibold text-emerald-700">(cr {formatAED(Math.abs(memberBal))})</span>
+                                      )}
+                                      {inlinePayMemberId === d.member.id ? (
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                          <input type="number" step="0.01" value={inlinePayAmount} onChange={(e) => setInlinePayAmount(e.target.value)}
+                                            placeholder={String(d.amount)} className="w-16 text-xs px-1.5 py-1 border rounded-lg text-gray-800 text-right" />
+                                          <select value={inlinePayMethod} onChange={(e) => {
+                                            const m = e.target.value;
+                                            setInlinePayMethod(m);
+                                            if (m === "credit") setInlinePayAmount("0");
+                                            else if (inlinePayMethod === "credit") setInlinePayAmount("");
+                                          }} className="text-xs px-1.5 py-1 border rounded-lg text-gray-800">
+                                            <option value="cash">Cash</option>
+                                            <option value="bank_transfer">Bank</option>
+                                            {hasEnoughCredit && (
+                                              <option value="credit">Credit ({formatAED(Math.abs(memberBal))})</option>
+                                            )}
+                                          </select>
+                                          <button disabled={inlinePaySubmitting} onClick={() => recordInlinePayment(event.id, d.member.id, d.amount, event.date)} className="bg-emerald-600 text-white text-xs px-2.5 py-1 rounded-lg font-semibold disabled:opacity-50">{inlinePaySubmitting ? "..." : "Pay"}</button>
+                                          <button onClick={() => { setInlinePayMemberId(null); setInlinePayAmount(""); }} className="text-gray-500 text-xs px-1.5 py-1">X</button>
+                                        </div>
+                                      ) : (
+                                        <button onClick={() => { setInlinePayMemberId(d.member.id); setInlinePayMethod("cash"); setInlinePayAmount(""); }} className="bg-emerald-600 text-white text-xs px-2.5 py-1 rounded-lg font-semibold">Mark Paid</button>
+                                      )}
+                                    </>
+                                  );
+                                })()}
                               </div>
                             </div>
                           </div>
