@@ -39,6 +39,7 @@ interface GuestPlayer {
   name: string;
   skillTier: string;
   ageGroup: string;
+  position: string;
 }
 
 const SKILL_TIERS = [
@@ -120,6 +121,7 @@ export default function TeamBalancerPage() {
   const [guestName, setGuestName] = useState("");
   const [guestTier, setGuestTier] = useState("silver");
   const [guestAge, setGuestAge] = useState("age30to40");
+  const [guestPosition, setGuestPosition] = useState("any");
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState<TeamResult | null>(null);
   const [jerseyA, setJerseyA] = useState(0);
@@ -230,11 +232,12 @@ export default function TeamBalancerPage() {
 
   function addGuest() {
     if (!guestName.trim()) return;
-    const newGuests = [...guests, { name: guestName.trim(), skillTier: guestTier, ageGroup: guestAge }];
+    const newGuests = [...guests, { name: guestName.trim(), skillTier: guestTier, ageGroup: guestAge, position: guestPosition }];
     setGuests(newGuests);
     setGuestName("");
     setGuestTier("silver");
     setGuestAge("age30to40");
+    setGuestPosition("any");
     // Auto-generate with new guest
     doGenerate(selectedIds, newGuests);
   }
@@ -404,6 +407,16 @@ export default function TeamBalancerPage() {
                   <option key={a.value} value={a.value}>{a.label}</option>
                 ))}
               </select>
+              <select
+                value={guestPosition}
+                onChange={(e) => setGuestPosition(e.target.value)}
+                className="border rounded-lg px-2 py-2 text-sm bg-white"
+                title="Position"
+              >
+                {POSITIONS.map((p) => (
+                  <option key={p.value} value={p.value}>{p.label}</option>
+                ))}
+              </select>
               <button
                 onClick={addGuest}
                 disabled={!guestName.trim()}
@@ -418,6 +431,11 @@ export default function TeamBalancerPage() {
                   <span key={i} className="inline-flex items-center gap-1.5 bg-gray-100 rounded-full pl-3 pr-1.5 py-1 text-sm">
                     <span className="font-medium text-gray-700">{g.name}</span>
                     {getSkillBadge(g.skillTier)}
+                    {g.position !== "any" && (
+                      <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold">
+                        {POSITIONS.find((p) => p.value === g.position)?.label || g.position}
+                      </span>
+                    )}
                     <button
                       onClick={() => removeGuest(i)}
                       className="w-5 h-5 rounded-full bg-red-100 text-red-600 hover:bg-red-200 flex items-center justify-center text-xs font-bold ml-1"
