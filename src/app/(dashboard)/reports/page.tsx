@@ -123,16 +123,19 @@ function ReportsContent() {
 
     // Day Summary block (always shown for matches)
     if (isMatch) {
-      const collectedTotal = cashTotal + bankTotal + creditApplied;
+      // P&L "Collected" = cash + bank only (real fund inflow this match).
+      // From Credit is shown as info-only since that money was already
+      // received in a previous match.
+      const collectedTotal = cashTotal + bankTotal;
       msg += `📊 *Day Summary*\n`;
       msg += "```\n";
       msg += `Cash         ${padAmt(num(cashTotal), 10)}\n`;
       msg += `Bank         ${padAmt(num(bankTotal), 10)}\n`;
-      if (creditApplied > 0.01) {
-        msg += `From Credit  ${padAmt(num(creditApplied), 10)}\n`;
-      }
       msg += `${"─".repeat(22)}\n`;
       msg += `Collected    ${padAmt(num(collectedTotal), 10)}\n`;
+      if (creditApplied > 0.01) {
+        msg += `From Credit  ${padAmt(num(creditApplied), 10)}   (info only)\n`;
+      }
       if (ev.totalCost > 0) {
         const surplus = collectedTotal - ev.totalCost;
         msg += `Ground       ${padAmt(num(ev.totalCost), 10)}\n`;
