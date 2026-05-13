@@ -1,9 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { formatAED } from "@/lib/format";
 
 interface MemberGroup { id: string; name: string; members: { id: string; member: { id: string; name: string } }[] }
 interface EventTemplate { id: string; name: string; type: string; amount: number; amountType: string; groupId: string | null; notes: string }
+interface ClosePreview {
+  sinceDate: string;
+  monthReceived: number;
+  monthCosts: number;
+  monthIncome: number;
+  monthProfit: number;
+  nowLabel: string;
+  lastCloseLabel: string | null;
+}
 
 export default function SettingsPage() {
   const [bankName, setBankName] = useState("");
@@ -41,7 +51,52 @@ export default function SettingsPage() {
 
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { loadAll(); }, []);
+  // Monthly Close
+  const [closePreview, setClosePreview] = useState<ClosePreview | null>(null);
+  const [closing, setClosing] = useState(false);
+
+  async function loadClosePreview() {
+    const data = await (await fetch("/api/close-month")).json();
+    setClosePreview(data);
+  }
+
+  async function handleCloseMonth() {
+    if (!closePreview) return;
+    const msg =
+      `⚠️ Close current period?\n\n` +
+      `Period: from ${closePreview.lastCloseLabel || "the beginning"} to today\n\n` +
+      `Received (Cash + Bank): ${formatAED(closePreview.monthReceived)}\n` +
+      `Income (Sponsorship etc): ${formatAED(closePreview.monthIncome)}\n` +
+      `Costs (Ground + Expenses): ${formatAED(closePreview.monthCosts)}\n` +
+      `Profit to carry forward: ${formatAED(closePreview.monthProfit)}\n\n` +
+      `This will:\n` +
+      `• Add the profit ${formatAED(closePreview.monthProfit)} to Total Income\n` +
+      `• Reset Total Received and Total Cost to 0\n` +
+      `• Group Fund stays exactly the same\n` +
+      `• No data is deleted — full history remains in Reports\n\n` +
+      `Continue?`;
+    if (!confirm(msg)) return;
+    if (closing) return;
+    setClosing(true);
+    try {
+      const res = await fetch("/api/close-month", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ notes: "" }) });
+      const data = await res.json();
+      if (!res.ok) { alert(data.error || "Close failed"); return; }
+      alert(`✓ Period closed. Profit ${formatAED(closePreview.monthProfit)} carried to Total Income.`);
+      await loadClosePreview();
+    } finally { setClosing(false); }
+  }
+
+  async function handleUndoLastClose() {
+    if (!confirm("⚠️ UNDO the most recent monthly close?\n\nThis brings the closed period's Received/Cost back into the current totals. Use this only if you closed by mistake.")) return;
+    const res = await fetch("/api/close-month", { method: "DELETE" });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || "Undo failed"); return; }
+    alert("✓ Last close undone.");
+    await loadClosePreview();
+  }
+
+  useEffect(() => { loadAll(); loadClosePreview(); }, []);
 
   async function loadAll() {
     const data = await (await fetch("/api/settings/data")).json();
@@ -346,6 +401,53 @@ export default function SettingsPage() {
             {saved && <span className="text-sm text-emerald-600 font-semibold">Saved!</span>}
           </div>
         </form>
+      </div>
+
+      {/* Monthly Close */}
+      <div className="bg-white rounded-xl shadow-sm border p-4 md:p-6 max-w-2xl mb-6">
+        <h2 className="font-semibold text-gray-900 mb-2">📅 Monthly Close</h2>
+        <p className="text-sm text-gray-600 mb-4">
+          Snapshot the current open period and roll its profit forward into <span className="font-semibold">Total Income</span> on the dashboard.
+          Use this at month-end. Member balances, history, and group fund stay exactly the same — just the dashboard&apos;s Received / Cost totals reset to start a new month.
+        </p>
+        {closePreview ? (
+          <>
+            <div className="bg-gray-50 rounded-lg border p-3 mb-3 text-sm">
+              <div className="text-xs text-gray-500 mb-2">
+                Open period: {closePreview.lastCloseLabel ? `since last close (${closePreview.lastCloseLabel})` : "from the beginning"}
+              </div>
+              <div className="grid grid-cols-2 gap-y-1">
+                <div className="text-gray-700">Received (Cash+Bank)</div>
+                <div className="text-right font-semibold text-emerald-700">{formatAED(closePreview.monthReceived)}</div>
+                <div className="text-gray-700">Income</div>
+                <div className="text-right font-semibold text-purple-700">{formatAED(closePreview.monthIncome)}</div>
+                <div className="text-gray-700">Costs</div>
+                <div className="text-right font-semibold text-red-600">{formatAED(closePreview.monthCosts)}</div>
+                <div className="text-gray-900 font-bold border-t pt-1">Profit to carry forward</div>
+                <div className={`text-right font-bold border-t pt-1 ${closePreview.monthProfit >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+                  {closePreview.monthProfit >= 0 ? "+" : ""}{formatAED(closePreview.monthProfit)}
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={handleCloseMonth}
+                disabled={closing || (closePreview.monthReceived === 0 && closePreview.monthCosts === 0 && closePreview.monthIncome === 0)}
+                className="bg-emerald-600 text-white px-5 py-2 rounded-lg hover:bg-emerald-700 font-semibold text-sm disabled:opacity-50">
+                {closing ? "Closing..." : "Close Month"}
+              </button>
+              {closePreview.lastCloseLabel && (
+                <button
+                  onClick={handleUndoLastClose}
+                  className="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 font-medium text-sm">
+                  Undo Last Close ({closePreview.lastCloseLabel})
+                </button>
+              )}
+            </div>
+          </>
+        ) : (
+          <p className="text-sm text-gray-500">Loading...</p>
+        )}
       </div>
 
       {/* Change Password */}

@@ -3,8 +3,6 @@ import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-// Per-user cache: max-age=5s in-browser + 30s stale-while-revalidate.
-// Reduces hammering Turso when a user navigates back/forth quickly.
 const CACHE_HEADERS = { "Cache-Control": "private, max-age=5, stale-while-revalidate=30" };
 
 export async function GET(request: NextRequest) {
@@ -14,7 +12,12 @@ export async function GET(request: NextRequest) {
 }
 
 async function handleDadas() {
-  const [members, events, settings, companyIncomes, allExpenses] = await Promise.all([
+  // Member balances are computed LIFETIME (full history) regardless of monthly
+  // close — so credits and dues never get lost across a close.
+  // The current-period totals (Received / Cost) are filtered to AFTER the
+  // most recent MonthlyClose date. Past months' profit is rolled forward
+  // into Total Income.
+  const [members, settings, lastClose, allCloses] = await Promise.all([
     prisma.member.findMany({
       where: { active: true },
       orderBy: { name: "asc" },
@@ -23,19 +26,12 @@ async function handleDadas() {
         payments: { where: { category: "dadas" }, select: { amount: true } },
       },
     }),
-    prisma.event.findMany({ select: { totalCost: true } }),
     prisma.settings.findUnique({ where: { id: "main" } }),
-    prisma.companyIncome.findMany({ select: { amount: true } }),
-    prisma.eventExpense.findMany({ select: { amount: true } }),
+    prisma.monthlyClose.findFirst({ orderBy: { closeDate: "desc" } }),
+    prisma.monthlyClose.findMany({ select: { monthProfit: true } }),
   ]);
 
-  let totalIncome = 0;
-  for (const i of companyIncomes) totalIncome += i.amount;
-  let totalEventExpenses = 0;
-  for (const e of allExpenses) totalEventExpenses += e.amount;
-  let totalEventCosts = 0;
-  for (const e of events) totalEventCosts += e.totalCost;
-
+  // Lifetime member balances (unchanged behaviour)
   const balances = members.map((member) => {
     let totalDue = 0;
     for (const d of member.eventDues) totalDue += d.amount;
@@ -51,41 +47,85 @@ async function handleDadas() {
     };
   });
 
-  let totalReceived = 0;
+  // Sum of all past month profits — carried forward into Total Income
+  let carryForward = 0;
+  for (const c of allCloses) carryForward += c.monthProfit;
+
+  // Cutoff: only count activity AFTER this date in "current period" totals
+  const sinceDate = lastClose?.closeDate ?? new Date(0);
+
+  // Current-period totals (post-close)
+  const [periodPayments, periodEvents, periodExpenses, periodIncomes] = await Promise.all([
+    prisma.payment.findMany({
+      where: { category: "dadas", date: { gt: sinceDate } },
+      select: { amount: true },
+    }),
+    prisma.event.findMany({
+      where: { date: { gt: sinceDate } },
+      select: { totalCost: true },
+    }),
+    prisma.eventExpense.findMany({
+      where: { date: { gt: sinceDate } },
+      select: { amount: true },
+    }),
+    prisma.companyIncome.findMany({
+      where: { date: { gt: sinceDate } },
+      select: { amount: true },
+    }),
+  ]);
+
+  let periodReceived = 0;
+  for (const p of periodPayments) periodReceived += p.amount;
+  let periodEventCosts = 0;
+  for (const e of periodEvents) periodEventCosts += e.totalCost;
+  let periodEventExpenses = 0;
+  for (const e of periodExpenses) periodEventExpenses += e.amount;
+  let periodIncome = 0;
+  for (const i of periodIncomes) periodIncome += i.amount;
+  const periodCosts = periodEventCosts + periodEventExpenses;
+
+  // Total Income displayed = current period income + carry-forward from closes
+  const totalIncomeDisplay = periodIncome + carryForward;
+
+  // Outstanding / credits remain lifetime (member balances)
   let totalOutstanding = 0;
   let totalCredits = 0;
   for (const b of balances) {
-    totalReceived += b.totalPaid;
     if (b.balance > 0) totalOutstanding += b.balance;
     else if (b.balance < 0) totalCredits += -b.balance;
   }
 
-  const totalCosts = totalEventCosts + totalEventExpenses;
-  const groupFund = totalReceived + totalIncome - totalCosts;
+  // Group Fund = current received + total income (incl. carry-forward) - current costs.
+  // Mathematically equivalent to lifetime received + lifetime income - lifetime costs
+  // because carryForward already absorbed each past month's (received + income - costs).
+  const groupFund = periodReceived + totalIncomeDisplay - periodCosts;
   const companyFund = groupFund - totalCredits;
 
   return NextResponse.json({
     profile: "dadas",
     balances,
     totals: {
-      totalReceived,
-      totalCosts,
-      totalEventCosts,
-      totalEventExpenses,
-      totalIncome,
+      totalReceived: periodReceived,
+      totalCosts: periodCosts,
+      totalEventCosts: periodEventCosts,
+      totalEventExpenses: periodEventExpenses,
+      totalIncome: totalIncomeDisplay,
+      periodIncome,
+      carryForward,
       totalOutstanding,
       totalCredits,
       groupFund,
       companyFund,
       memberCount: members.length,
       groupName: settings?.groupName || "Company",
+      lastCloseDate: lastClose?.closeDate ?? null,
+      lastCloseLabel: lastClose?.monthLabel ?? null,
     },
   }, { headers: CACHE_HEADERS });
 }
 
 async function handleBigTicket() {
-  // Parallelize: settings + all-members + purchases all in parallel.
-  // We then locally filter members by Big Ticket group instead of a 2nd round-trip.
+  // Big Ticket unchanged — monthly close only applies to the DADAS profile
   const [settings, allMembers, purchases, allGroupLinks] = await Promise.all([
     prisma.settings.findUnique({ where: { id: "main" } }),
     prisma.member.findMany({

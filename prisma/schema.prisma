@@ -199,6 +199,23 @@ model TeamSheet {
   createdAt DateTime @default(now())
 }
 
+// Monthly "close the books" snapshot. Created when admin clicks "Close Month"
+// in Settings. Lets the dashboard reset its Total Received / Total Cost
+// per-period while preserving lifetime member balances and full history.
+model MonthlyClose {
+  id            String   @id @default(cuid())
+  closeDate     DateTime // cutoff: only activity strictly after this counts as "current period"
+  monthLabel    String   // e.g. "2026-11" for display
+  monthReceived Float    // cash+bank payments collected during this period
+  monthCosts    Float    // event costs + expenses during this period
+  monthIncome   Float    // company income during this period
+  monthProfit   Float    // (received + income) - costs — carried forward to Total Income
+  notes         String   @default("")
+  createdAt     DateTime @default(now())
+
+  @@index([closeDate])
+}
+
 model Settings {
   id              String @id @default("main")
   bankName        String @default("")

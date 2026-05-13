@@ -148,6 +148,17 @@ const tables = [
     notes TEXT NOT NULL DEFAULT '',
     createdAt TEXT NOT NULL DEFAULT (datetime('now'))
   )`,
+  `CREATE TABLE IF NOT EXISTS MonthlyClose (
+    id TEXT PRIMARY KEY,
+    closeDate TEXT NOT NULL,
+    monthLabel TEXT NOT NULL,
+    monthReceived REAL NOT NULL,
+    monthCosts REAL NOT NULL,
+    monthIncome REAL NOT NULL,
+    monthProfit REAL NOT NULL,
+    notes TEXT NOT NULL DEFAULT '',
+    createdAt TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
   `CREATE TABLE IF NOT EXISTS Settings (
     id TEXT PRIMARY KEY,
     bankName TEXT NOT NULL DEFAULT '',
@@ -194,6 +205,7 @@ const indexes = [
   `CREATE INDEX IF NOT EXISTS idx_companyincome_date ON CompanyIncome(date)`,
   `CREATE INDEX IF NOT EXISTS idx_eventexpense_event ON EventExpense(eventId)`,
   `CREATE INDEX IF NOT EXISTS idx_eventexpense_date ON EventExpense(date)`,
+  `CREATE INDEX IF NOT EXISTS idx_monthlyclose_date ON MonthlyClose(closeDate)`,
 ];
 for (const sql of indexes) {
   try { await db.execute(sql); } catch (e) { console.error("Index error:", e.message); }

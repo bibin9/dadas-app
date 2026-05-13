@@ -20,12 +20,16 @@ interface DadasTotals {
   totalEventCosts: number;
   totalEventExpenses: number;
   totalIncome: number;
+  periodIncome: number;
+  carryForward: number;
   totalOutstanding: number;
   totalCredits: number;
   groupFund: number;
   companyFund: number;
   memberCount: number;
   groupName: string;
+  lastCloseDate: string | null;
+  lastCloseLabel: string | null;
 }
 
 interface BigTicketTotals {
@@ -97,16 +101,23 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">
-        {isDadas ? "Dashboard" : "Big Ticket Dashboard"}
-      </h1>
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">
+          {isDadas ? "Dashboard" : "Big Ticket Dashboard"}
+        </h1>
+        {isDadas && totals.lastCloseLabel && (
+          <p className="text-xs text-gray-500 mt-1">
+            Showing activity since last close ({totals.lastCloseLabel}). Past months rolled into Total Income.
+          </p>
+        )}
+      </div>
 
       {/* Summary Cards */}
       {isDadas ? (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4 mb-6 md:mb-8">
           <Card label="Total Received" value={formatAED(totals.totalReceived)} color="emerald" onClick={() => router.push("/payments")} />
           <Card label="Total Costs" value={formatAED(totals.totalCosts)} color="red" subtitle={`Match: ${formatAED(totals.totalEventCosts)} + Exp: ${formatAED(totals.totalEventExpenses)}`} onClick={() => router.push("/expenses")} />
-          <Card label="Total Income" value={formatAED(totals.totalIncome)} color="purple" onClick={() => router.push("/income")} />
+          <Card label="Total Income" value={formatAED(totals.totalIncome)} color="purple" subtitle={totals.carryForward > 0.01 ? `Carried: ${formatAED(totals.carryForward)} + ${formatAED(totals.periodIncome)} this period` : undefined} onClick={() => router.push("/income")} />
           <Card label="Outstanding" value={formatAED(totals.totalOutstanding)} color={totals.totalOutstanding > 0 ? "amber" : "emerald"} onClick={() => router.push("/reports?tab=outstanding")} />
           <Card
             label={`${totals.groupName} Fund`}
