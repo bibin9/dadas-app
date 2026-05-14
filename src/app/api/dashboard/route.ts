@@ -28,7 +28,7 @@ async function handleDadas() {
     }),
     prisma.settings.findUnique({ where: { id: "main" } }),
     prisma.monthlyClose.findFirst({ orderBy: { closeDate: "desc" } }),
-    prisma.monthlyClose.findMany({ select: { monthProfit: true } }),
+    prisma.monthlyClose.findMany({ select: { monthProfit: true, creditsAtClose: true } }),
   ]);
 
   // Lifetime member balances (unchanged behaviour)
@@ -47,9 +47,12 @@ async function handleDadas() {
     };
   });
 
-  // Sum of all past month profits — carried forward into Total Income
+  // Sum of all past month REAL profits — carried forward into Total Income
+  // (monthProfit now excludes player credit liability, so this is "real" profit)
   let carryForward = 0;
   for (const c of allCloses) carryForward += c.monthProfit;
+  // Credits at the most recent close — needed to keep groupFund math lifetime-consistent
+  const lastCloseCredits = lastClose?.creditsAtClose ?? 0;
 
   // Cutoff: only count activity AFTER this date in "current period" totals
   const sinceDate = lastClose?.closeDate ?? new Date(0);
@@ -95,10 +98,13 @@ async function handleDadas() {
     else if (b.balance < 0) totalCredits += -b.balance;
   }
 
-  // Group Fund = current received + total income (incl. carry-forward) - current costs.
-  // Mathematically equivalent to lifetime received + lifetime income - lifetime costs
-  // because carryForward already absorbed each past month's (received + income - costs).
-  const groupFund = periodReceived + totalIncomeDisplay - periodCosts;
+  // Group Fund (lifetime "money on hand including credits owed back"):
+  //   = periodReceived + periodIncome + periodCarry - periodCosts + lastCloseCredits
+  // The lastCloseCredits term is needed because carryForward now excludes credit
+  // liability — but that credit money is still physically in the fund. Adding
+  // it back makes groupFund correctly equal the lifetime received+income-costs.
+  const groupFund = periodReceived + totalIncomeDisplay - periodCosts + lastCloseCredits;
+  // Company Fund = Group Fund - current credit liability (= real money the club has)
   const companyFund = groupFund - totalCredits;
 
   return NextResponse.json({

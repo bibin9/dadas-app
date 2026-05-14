@@ -10,7 +10,11 @@ interface ClosePreview {
   monthReceived: number;
   monthCosts: number;
   monthIncome: number;
-  monthProfit: number;
+  monthProfit: number;       // REAL profit (excludes credit)
+  grossProfit: number;       // received + income - costs (info)
+  deltaCredits: number;      // net new credit liability this period
+  currentCredits: number;    // lifetime credit balance now
+  prevCredits: number;       // credit balance at last close
   nowLabel: string;
   lastCloseLabel: string | null;
 }
@@ -62,16 +66,22 @@ export default function SettingsPage() {
 
   async function handleCloseMonth() {
     if (!closePreview) return;
+    const deltaLabel = closePreview.deltaCredits >= 0
+      ? `+${formatAED(closePreview.deltaCredits)} (new credit owed back)`
+      : `-${formatAED(Math.abs(closePreview.deltaCredits))} (credit used by players)`;
     const msg =
       `⚠️ Close current period?\n\n` +
       `Period: from ${closePreview.lastCloseLabel || "the beginning"} to today\n\n` +
       `Received (Cash + Bank): ${formatAED(closePreview.monthReceived)}\n` +
       `Income (Sponsorship etc): ${formatAED(closePreview.monthIncome)}\n` +
       `Costs (Ground + Expenses): ${formatAED(closePreview.monthCosts)}\n` +
-      `Profit to carry forward: ${formatAED(closePreview.monthProfit)}\n\n` +
+      `Player Credit change: ${deltaLabel}\n` +
+      `\n` +
+      `REAL profit (excludes credit): ${formatAED(closePreview.monthProfit)}\n\n` +
       `This will:\n` +
-      `• Add the profit ${formatAED(closePreview.monthProfit)} to Total Income\n` +
+      `• Add the real profit ${formatAED(closePreview.monthProfit)} to Total Income\n` +
       `• Reset Total Received and Total Cost to 0\n` +
+      `• Player credit balances are preserved as-is\n` +
       `• Group Fund stays exactly the same\n` +
       `• No data is deleted — full history remains in Reports\n\n` +
       `Continue?`;
@@ -423,11 +433,23 @@ export default function SettingsPage() {
                 <div className="text-right font-semibold text-purple-700">{formatAED(closePreview.monthIncome)}</div>
                 <div className="text-gray-700">Costs</div>
                 <div className="text-right font-semibold text-red-600">{formatAED(closePreview.monthCosts)}</div>
-                <div className="text-gray-900 font-bold border-t pt-1">Profit to carry forward</div>
+                <div className="text-gray-700">Gross profit</div>
+                <div className="text-right text-gray-700">{formatAED(closePreview.grossProfit)}</div>
+                <div className="text-gray-700 text-xs italic">
+                  − Player credit change
+                  {closePreview.deltaCredits >= 0 ? " (new credit owed)" : " (credit used)"}
+                </div>
+                <div className="text-right text-xs italic text-gray-700">
+                  {closePreview.deltaCredits >= 0 ? "−" : "+"}{formatAED(Math.abs(closePreview.deltaCredits))}
+                </div>
+                <div className="text-gray-900 font-bold border-t pt-1">Real profit (carry forward)</div>
                 <div className={`text-right font-bold border-t pt-1 ${closePreview.monthProfit >= 0 ? "text-emerald-700" : "text-red-600"}`}>
                   {closePreview.monthProfit >= 0 ? "+" : ""}{formatAED(closePreview.monthProfit)}
                 </div>
               </div>
+              <p className="text-xs text-gray-500 mt-2">
+                Player credit ({formatAED(closePreview.currentCredits)}) stays as a separate balance — not counted in profit since it&apos;s owed back to players.
+              </p>
             </div>
             <div className="flex gap-2 flex-wrap">
               <button
