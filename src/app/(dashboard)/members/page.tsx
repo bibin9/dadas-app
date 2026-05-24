@@ -8,6 +8,7 @@ interface Member {
   name: string;
   phone: string;
   active: boolean;
+  isGuest?: boolean;
 }
 
 interface MemberGroupMember { id: string; member: Member }
@@ -96,7 +97,12 @@ export default function MembersPage() {
       ? `⚠️ DELETE member "${m.name}"?\n\nThis will PERMANENTLY remove the member and ALL their:\n• Event dues\n• Purchase shares\n• Payment history\n\nThis cannot be undone.`
       : "Delete this member?";
     if (!confirm(msg)) return;
-    await fetch(`/api/members/${id}`, { method: "DELETE" });
+    const res = await fetch(`/api/members/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(`Delete failed: ${data.message || data.error || res.statusText}`);
+      return;
+    }
     loadMembers();
   }
 
@@ -154,12 +160,33 @@ export default function MembersPage() {
   }
 
   const activeMembers = members.filter((m) => m.active);
+  const guestMembers = members.filter((m) => m.isGuest);
+
+  async function handleCleanupGuests() {
+    if (guestMembers.length === 0) { alert("No guest members to clean up."); return; }
+    if (!confirm(`⚠️ Delete ALL ${guestMembers.length} guest member(s)?\n\nThis removes all guest player records and any payments/dues linked to them. Use this to clean up after matches.\n\nThis cannot be undone.`)) return;
+    let failed = 0;
+    for (const g of guestMembers) {
+      const res = await fetch(`/api/members/${g.id}`, { method: "DELETE" });
+      if (!res.ok) failed++;
+    }
+    if (failed > 0) alert(`Cleaned up ${guestMembers.length - failed} guests. ${failed} failed.`);
+    loadMembers();
+  }
 
   if (loading) return <div className="text-gray-700 font-medium p-4">Loading...</div>;
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Members</h1>
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
+        <h1 className="text-2xl font-bold text-gray-900">Members</h1>
+        {guestMembers.length > 0 && (
+          <button onClick={handleCleanupGuests}
+            className="bg-orange-100 text-orange-800 border border-orange-300 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-orange-200">
+            🧹 Cleanup {guestMembers.length} guest{guestMembers.length !== 1 ? "s" : ""}
+          </button>
+        )}
+      </div>
 
       {/* Add Member Form */}
       <div className="bg-white rounded-xl shadow-sm border p-4 md:p-6 mb-6">
@@ -273,7 +300,10 @@ export default function MembersPage() {
             ) : (
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <div className="font-semibold text-gray-900">{m.name}</div>
+                  <div className="font-semibold text-gray-900 flex items-center gap-2">
+                    {m.name}
+                    {m.isGuest && <span className="text-xs px-1.5 py-0.5 rounded bg-orange-100 text-orange-800 font-bold">GUEST</span>}
+                  </div>
                   <button onClick={() => handleToggleActive(m)}
                     className={`text-xs px-2 py-1 rounded-full font-semibold ${m.active ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-600"}`}>
                     {m.active ? "Active" : "Inactive"}
@@ -324,7 +354,12 @@ export default function MembersPage() {
                     </>
                   ) : (
                     <>
-                      <td className="px-6 py-3 font-semibold text-gray-900">{m.name}</td>
+                      <td className="px-6 py-3 font-semibold text-gray-900">
+                        <span className="inline-flex items-center gap-2">
+                          {m.name}
+                          {m.isGuest && <span className="text-xs px-1.5 py-0.5 rounded bg-orange-100 text-orange-800 font-bold">GUEST</span>}
+                        </span>
+                      </td>
                       <td className="px-6 py-3 text-gray-800">{m.phone || "-"}</td>
                       <td className="px-6 py-3">
                         <button onClick={() => handleToggleActive(m)}

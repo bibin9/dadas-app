@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { settleMember, DueInput, PaymentInput } from "@/lib/settlement";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +11,7 @@ export async function GET(request: NextRequest) {
 }
 
 async function handleDadas() {
-  const [events, members, settings, companyIncomes, eventExpenses, allDues, allPayments] =
+  const [events, members, settings, companyIncomes, eventExpenses, allDuesFull, allPaymentsFull] =
     await Promise.all([
       prisma.event.findMany({
         orderBy: { date: "desc" },
@@ -32,16 +33,55 @@ async function handleDadas() {
         },
       }),
       prisma.member.findMany({
-        where: { active: true },
         orderBy: { name: "asc" },
-        select: { id: true, name: true, phone: true },
+        select: { id: true, name: true, phone: true, active: true, isGuest: true },
       }),
       prisma.settings.findUnique({ where: { id: "main" } }),
       prisma.companyIncome.findMany({ orderBy: { date: "desc" } }),
       prisma.eventExpense.findMany({ orderBy: { date: "desc" } }),
-      prisma.eventDue.findMany({ select: { memberId: true, amount: true } }),
-      prisma.payment.findMany({ where: { category: "dadas" }, select: { memberId: true, amount: true } }),
+      // Full dues+payments for FIFO settlement (need dates + eventIds)
+      prisma.eventDue.findMany({
+        select: { memberId: true, amount: true, eventId: true, event: { select: { date: true } } },
+      }),
+      prisma.payment.findMany({
+        where: { category: "dadas" },
+        select: { id: true, memberId: true, amount: true, method: true, eventId: true, date: true },
+      }),
     ]);
+
+  // ===== FIFO SETTLEMENT (per member) =====
+  // Group dues and payments by member, then settle each independently.
+  const duesByMember = new Map<string, DueInput[]>();
+  for (const d of allDuesFull) {
+    if (!d.event) continue;
+    const arr = duesByMember.get(d.memberId) || [];
+    arr.push({ memberId: d.memberId, eventId: d.eventId, eventDate: d.event.date, amount: d.amount });
+    duesByMember.set(d.memberId, arr);
+  }
+  const paymentsByMember = new Map<string, PaymentInput[]>();
+  for (const p of allPaymentsFull) {
+    const arr = paymentsByMember.get(p.memberId) || [];
+    arr.push({
+      memberId: p.memberId,
+      paymentId: p.id,
+      date: p.date,
+      amount: p.amount,
+      method: p.method,
+      eventId: p.eventId,
+    });
+    paymentsByMember.set(p.memberId, arr);
+  }
+
+  // For each member, run FIFO and collect per-event effective paid + outstanding
+  const effectivePaidByEventByMember = new Map<string, Map<string, number>>(); // memberId -> (eventId -> effectivePaid)
+  const outstandingByEventByMember = new Map<string, Map<string, number>>(); // memberId -> (eventId -> outstanding)
+  for (const m of members) {
+    const dues = duesByMember.get(m.id) || [];
+    const payments = paymentsByMember.get(m.id) || [];
+    const result = settleMember(dues, payments);
+    effectivePaidByEventByMember.set(m.id, result.effectivePaidByEvent);
+    outstandingByEventByMember.set(m.id, result.outstandingByEvent);
+  }
 
   // Index incomes/expenses by event
   const incomeByEvent = new Map<string, typeof companyIncomes>();
@@ -61,13 +101,34 @@ async function handleDadas() {
 
   const eventReports = events.map((event) => {
     let totalDue = 0;
-    let totalPaid = 0;
     for (const d of event.dues) totalDue += d.amount;
-    for (const p of event.payments) totalPaid += p.amount;
 
-    const paidMemberIds = new Set(event.payments.map((p) => p.memberId));
-    const unpaidDues = event.dues.filter((d) => !paidMemberIds.has(d.memberId));
-    const paidDues = event.dues.filter((d) => paidMemberIds.has(d.memberId));
+    // Per-event totalPaid (FIFO effective) — sum the effective payments
+    // allocated to this event across all its members.
+    let totalPaidEffective = 0;
+    for (const d of event.dues) {
+      const memberMap = effectivePaidByEventByMember.get(d.memberId);
+      const eff = memberMap?.get(event.id) ?? 0;
+      totalPaidEffective += eff;
+    }
+
+    // Per-event totalPaid (direct = sum of payments LINKED to this event)
+    // Kept for display purposes (e.g. so cash collected on match day shows)
+    let totalPaidDirect = 0;
+    for (const p of event.payments) totalPaidDirect += p.amount;
+
+    // Split dues into paid / partial / unpaid based on FIFO effective amount
+    const paidDues: typeof event.dues = [];
+    const unpaidDues: typeof event.dues = [];
+    for (const d of event.dues) {
+      const memberMap = effectivePaidByEventByMember.get(d.memberId);
+      const eff = memberMap?.get(event.id) ?? 0;
+      if (eff >= d.amount - 0.01) {
+        paidDues.push(d);
+      } else {
+        unpaidDues.push(d);
+      }
+    }
 
     const incomes = incomeByEvent.get(event.id) || [];
     let totalIncome = 0;
@@ -77,10 +138,12 @@ async function handleDadas() {
     let totalExpenses = 0;
     for (const e of expenses) totalExpenses += e.amount;
 
-    const totalRevenue = totalPaid + totalIncome;
+    // P&L revenue uses FIFO effective payment — accurate per-event P&L
+    // since carry-over from other matches counts toward this match's settlement.
+    const totalRevenue = totalPaidEffective + totalIncome;
     const totalCosts = totalExpenses + event.totalCost;
 
-    // Index payments by member for fast lookup
+    // Index direct payments by member (for method display)
     const payByMember = new Map<string, typeof event.payments>();
     for (const p of event.payments) {
       const arr = payByMember.get(p.memberId) || [];
@@ -96,7 +159,8 @@ async function handleDadas() {
       perHeadFee: event.perHeadFee,
       totalCost: event.totalCost,
       totalDue,
-      totalPaid,
+      totalPaid: totalPaidEffective,       // FIFO effective (used in P&L)
+      totalPaidDirect,                      // direct payments linked to this event
       totalIncome,
       incomes: incomes.map((i) => ({ description: i.description, amount: i.amount, category: i.category })),
       totalExpenses,
@@ -104,50 +168,56 @@ async function handleDadas() {
       totalRevenue,
       totalCosts,
       netPL: totalRevenue - totalCosts,
-      outstanding: totalDue - totalPaid,
+      outstanding: totalDue - totalPaidEffective,
       playerCount: event.dues.length,
       paidCount: paidDues.length,
       unpaidCount: unpaidDues.length,
       paidMembers: paidDues.map((d) => {
         const memberPayments = payByMember.get(d.memberId) || [];
-        let paidAmount = 0;
-        for (const p of memberPayments) paidAmount += p.amount;
+        const eff = effectivePaidByEventByMember.get(d.memberId)?.get(event.id) ?? 0;
+        // method: prefer direct payment method, fall back to "carry-over"
+        const method = memberPayments[0]?.method || "carry-over";
         return {
           name: d.member.name,
           amount: d.amount,
-          paidAmount,
+          paidAmount: eff,
           isGuest: d.member.isGuest,
-          method: memberPayments[0]?.method || "cash",
+          method,
         };
       }),
-      unpaidMembers: unpaidDues.map((d) => ({
-        name: d.member.name,
-        amount: d.amount,
-        isGuest: d.member.isGuest,
-      })),
+      unpaidMembers: unpaidDues.map((d) => {
+        const eff = effectivePaidByEventByMember.get(d.memberId)?.get(event.id) ?? 0;
+        return {
+          name: d.member.name,
+          amount: d.amount,
+          paidAmount: eff,                   // partial amount covered (if any)
+          outstanding: d.amount - eff,       // still owed
+          isGuest: d.member.isGuest,
+        };
+      }),
     };
   });
 
-  // Outstanding by JS aggregation (libsql adapter compat)
-  const dueMap = new Map<string, number>();
-  for (const d of allDues) dueMap.set(d.memberId, (dueMap.get(d.memberId) || 0) + d.amount);
-  const paidMap = new Map<string, number>();
-  for (const p of allPayments) paidMap.set(p.memberId, (paidMap.get(p.memberId) || 0) + p.amount);
-
+  // Outstanding report: use FIFO outstanding totals (more accurate)
   const outstandingReport = members
     .map((m) => {
-      const totalDue = dueMap.get(m.id) || 0;
-      const totalPaid = paidMap.get(m.id) || 0;
+      const outstandingMap = outstandingByEventByMember.get(m.id) || new Map();
+      let totalOutstanding = 0;
+      for (const v of outstandingMap.values()) totalOutstanding += Math.max(0, v);
+      const effMap = effectivePaidByEventByMember.get(m.id) || new Map();
+      let totalPaid = 0;
+      for (const v of effMap.values()) totalPaid += v;
+      const totalDue = totalOutstanding + totalPaid;
       return {
         id: m.id,
         name: m.name,
         phone: m.phone,
         totalDue,
         totalPaid,
-        balance: totalDue - totalPaid,
+        balance: totalOutstanding,
       };
     })
-    .filter((m) => m.balance > 0)
+    .filter((m) => m.balance > 0.01)
     .sort((a, b) => b.balance - a.balance);
 
   return NextResponse.json({

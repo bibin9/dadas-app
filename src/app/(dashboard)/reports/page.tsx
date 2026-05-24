@@ -16,7 +16,7 @@ interface EventReport {
   totalRevenue: number; totalCosts: number; netPL: number;
   playerCount: number; paidCount: number; unpaidCount: number;
   paidMembers: { name: string; amount: number; paidAmount: number; isGuest: boolean; method?: string }[];
-  unpaidMembers: { name: string; amount: number; isGuest: boolean }[];
+  unpaidMembers: { name: string; amount: number; isGuest: boolean; paidAmount?: number; outstanding?: number }[];
 }
 interface OutstandingMember {
   id: string; name: string; phone: string; totalDue: number; totalPaid: number; balance: number;
