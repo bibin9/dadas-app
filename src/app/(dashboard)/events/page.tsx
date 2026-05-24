@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { formatAED, formatDate } from "@/lib/format";
 
-interface Member { id: string; name: string; isGuest?: boolean; balance?: number }
+interface Member { id: string; name: string; isGuest?: boolean; balance?: number; active?: boolean }
 interface EventDue { id: string; amount: number; paid: boolean; member: Member }
 interface EventPayment { id: string; amount: number; method: string; member: Member }
 interface Event { id: string; name: string; type: string; date: string; perHeadFee: number; totalCost: number; notes: string; dues: EventDue[]; payments?: EventPayment[] }
@@ -95,7 +95,7 @@ export default function EventsPage() {
   async function loadEvents() { setEvents(await (await fetch("/api/events")).json()); }
 
   // --- Player payment helpers ---
-  function initAllPlayers() { const map: Record<string, PlayerPayment> = {}; members.forEach((m) => { map[m.id] = { playing: true, paid: false, method: "cash" }; }); setPlayerPayments(map); }
+  function initAllPlayers() { const map: Record<string, PlayerPayment> = {}; members.forEach((m) => { map[m.id] = { playing: m.active !== false, paid: false, method: "cash" }; }); setPlayerPayments(map); }
   function togglePlaying(id: string) { setPlayerPayments((p) => ({ ...p, [id]: { ...p[id], playing: !p[id]?.playing, paid: p[id]?.playing ? false : p[id]?.paid } })); }
   function togglePaid(id: string) { setPlayerPayments((p) => ({ ...p, [id]: { ...p[id], paid: !p[id]?.paid } })); }
   function setMethod(id: string, m: string) {
@@ -332,16 +332,33 @@ export default function EventsPage() {
   const matchCollected = totalPlayers * parseFloat(matchFee || "0");
   const matchActualCost = parseFloat(matchCost || "0");
   const matchSurplus = matchCollected - matchActualCost;
+  // Show all active members + any inactive guests that are already part of
+  // this match being edited (so admins can untoggle them to remove).
+  const visibleMatchMembers = useMemo(() => {
+    return members.filter((m) => {
+      if (m.active !== false) return true; // active members always show
+      // Inactive guest: only show if linked to this match (in playerPayments map)
+      const pp = playerPayments[m.id];
+      return !!(pp && pp.playing);
+    });
+  }, [members, playerPayments]);
   const matchFilteredMembers = useMemo(() => {
-    if (!matchSearch) return members;
+    if (!matchSearch) return visibleMatchMembers;
     const q = matchSearch.toLowerCase();
-    return members.filter((m) => m.name.toLowerCase().includes(q));
-  }, [members, matchSearch]);
+    return visibleMatchMembers.filter((m) => m.name.toLowerCase().includes(q));
+  }, [visibleMatchMembers, matchSearch]);
+  // Event form: same approach
+  const visibleEventMembers = useMemo(() => {
+    return members.filter((m) => {
+      if (m.active !== false) return true;
+      return selectedMembers.includes(m.id);
+    });
+  }, [members, selectedMembers]);
   const eventFilteredMembers = useMemo(() => {
-    if (!eventSearch) return members;
+    if (!eventSearch) return visibleEventMembers;
     const q = eventSearch.toLowerCase();
-    return members.filter((m) => m.name.toLowerCase().includes(q));
-  }, [members, eventSearch]);
+    return visibleEventMembers.filter((m) => m.name.toLowerCase().includes(q));
+  }, [visibleEventMembers, eventSearch]);
 
   return (
     <div>
@@ -417,7 +434,10 @@ export default function EventsPage() {
                     <div key={m.id} className={`flex items-center gap-3 px-3 py-2.5 ${pp.playing ? "bg-white" : "bg-gray-50"}`}>
                       <button type="button" onClick={() => togglePlaying(m.id)} className={`w-7 h-7 rounded-full border-2 flex items-center justify-center text-xs font-bold flex-shrink-0 ${pp.playing ? "bg-blue-600 border-blue-600 text-white" : "bg-white border-gray-300 text-gray-300"}`}>{pp.playing ? "✓" : ""}</button>
                       <div className="flex-1 min-w-0">
-                        <span className={`font-semibold text-sm truncate block ${pp.playing ? "text-gray-900" : "text-gray-400 line-through"}`}>{m.name}</span>
+                        <span className={`font-semibold text-sm truncate block ${pp.playing ? "text-gray-900" : "text-gray-400 line-through"}`}>
+                          {m.name}
+                          {m.isGuest && <span className="ml-1.5 text-[10px] px-1 py-0.5 rounded bg-orange-100 text-orange-800 font-bold align-middle">GUEST</span>}
+                        </span>
                         {bal > 0.01 && (
                           <span className="text-xs font-medium text-red-600">Owes {formatAED(bal)}</span>
                         )}

@@ -30,10 +30,12 @@ export async function GET(request: NextRequest) {
         },
       },
     }),
+    // Include active members + inactive guests (so edit form can show guests
+    // linked to existing matches and let admins toggle them off).
     prisma.member.findMany({
-      where: { active: true },
+      where: { OR: [{ active: true }, { isGuest: true }] },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, phone: true, isGuest: true },
+      select: { id: true, name: true, phone: true, isGuest: true, active: true },
     }),
     prisma.settings.findFirst({ where: { id: "main" } }),
     prisma.memberGroup.findMany({
