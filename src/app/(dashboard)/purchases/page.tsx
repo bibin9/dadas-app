@@ -271,6 +271,66 @@ export default function PurchasesPage() {
     loadPurchases();
   }
 
+  // --- WhatsApp share (matches football match share format) ---
+  async function shareText(text: string) {
+    if (navigator.share) {
+      try { await navigator.share({ text }); return; } catch {}
+    }
+    try { await navigator.clipboard.writeText(text); alert("Copied to clipboard!"); }
+    catch { window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank"); }
+  }
+
+  function sharePurchaseWhatsApp(p: Purchase) {
+    const paidSplits = p.splits.filter((s) => s.paid);
+    const unpaidSplits = p.splits.filter((s) => !s.paid);
+    const collected = paidSplits.reduce((s, x) => s + x.amount, 0);
+    const outstanding = unpaidSplits.reduce((s, x) => s + x.amount, 0);
+
+    const num = (n: number) => n.toFixed(2);
+    const allNames = p.splits.map((s) => s.member.name);
+    const nameWidth = Math.min(Math.max(...allNames.map((n) => n.length), 6), 14);
+    const padName = (n: string) => {
+      const t = n.length > nameWidth ? n.slice(0, nameWidth - 1) + "…" : n;
+      return t.padEnd(nameWidth);
+    };
+    const padAmt = (s: string, w = 9) => s.padStart(w);
+
+    let msg = `🎫 *${p.description}*\n`;
+    msg += `📅 ${formatDate(p.date)}\n`;
+    msg += `💰 Total: ${formatAED(p.totalAmount)} · 👥 ${p.splits.length} members\n\n`;
+
+    if (paidSplits.length > 0) {
+      msg += `✅ *Paid (${paidSplits.length})*\n`;
+      msg += "```\n";
+      msg += `${"MEMBER".padEnd(nameWidth)}${padAmt("AMOUNT")}\n`;
+      msg += `${"─".repeat(nameWidth + 9)}\n`;
+      for (const s of paidSplits) {
+        msg += `${padName(s.member.name)}${padAmt(num(s.amount))}\n`;
+      }
+      msg += "```\n\n";
+    }
+
+    if (unpaidSplits.length > 0) {
+      msg += `❌ *Unpaid (${unpaidSplits.length})*\n`;
+      unpaidSplits.forEach((s) => { msg += `• ${s.member.name} — ${formatAED(s.amount)}\n`; });
+      msg += `\n`;
+    }
+
+    msg += `📊 *Summary*\n`;
+    msg += "```\n";
+    msg += `Collected    ${padAmt(num(collected), 10)}\n`;
+    msg += `Outstanding  ${padAmt(num(outstanding), 10)}\n`;
+    msg += `${"─".repeat(22)}\n`;
+    msg += `Total        ${padAmt(num(p.totalAmount), 10)}\n`;
+    msg += "```";
+
+    if (unpaidSplits.length > 0) {
+      msg += `\n\n_Please clear your dues at the earliest._`;
+    }
+
+    shareText(msg);
+  }
+
   const filteredMembers = search
     ? members.filter((m) => m.name.toLowerCase().includes(search.toLowerCase()))
     : members;
@@ -444,9 +504,16 @@ export default function PurchasesPage() {
                     </p>
                     {p.notes && <p className="text-sm text-gray-700 mt-1">{p.notes}</p>}
                   </div>
-                  <button onClick={() => handleDelete(p.id)} className="text-red-600 hover:text-red-800 text-sm font-medium">
-                    Delete
-                  </button>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button onClick={() => sharePurchaseWhatsApp(p)}
+                      className="bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-green-700 flex items-center gap-1">
+                      <span>📤</span>
+                      <span>Share</span>
+                    </button>
+                    <button onClick={() => handleDelete(p.id)} className="text-red-600 hover:text-red-800 text-sm font-medium">
+                      Delete
+                    </button>
+                  </div>
                 </div>
               </div>
 
