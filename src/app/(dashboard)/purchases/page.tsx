@@ -50,11 +50,16 @@ export default function PurchasesPage() {
   const [defaultShare, setDefaultShare] = useState(50);
   const [search, setSearch] = useState("");
 
-  // Inline collect state per purchase (which purchase is being collected from)
-  const [collectingPurchaseId, setCollectingPurchaseId] = useState<string | null>(null);
-  const [collectMethod, setCollectMethod] = useState("cash");
-  const [collectSelected, setCollectSelected] = useState<Set<string>>(new Set());
-  const [collecting, setCollecting] = useState(false);
+  // Per-row inline pay state (matches the football-match inline pay UX)
+  const [inlinePayKey, setInlinePayKey] = useState<string | null>(null); // "purchaseId:memberId"
+  const [inlinePayAmount, setInlinePayAmount] = useState("");
+  const [inlinePayMethod, setInlinePayMethod] = useState("cash");
+  const [inlinePaySubmitting, setInlinePaySubmitting] = useState(false);
+
+  // Bulk-select per purchase: which memberIds are checked in each purchase row
+  const [bulkSelected, setBulkSelected] = useState<Record<string, Set<string>>>({});
+  const [bulkPayMethod, setBulkPayMethod] = useState<Record<string, string>>({});
+  const [bulkPaySubmitting, setBulkPaySubmitting] = useState(false);
 
   const [loading, setLoading] = useState(true);
 
@@ -182,44 +187,78 @@ export default function PurchasesPage() {
     loadPurchases();
   }
 
-  // --- Collect Mode (mark splits as paid for an existing purchase) ---
-  function startCollect(purchaseId: string) {
-    setCollectingPurchaseId(purchaseId);
-    setCollectSelected(new Set());
-    setCollectMethod("cash");
+  // --- Per-row inline pay (matches football inline payment UX) ---
+  function startInlinePay(purchaseId: string, memberId: string) {
+    setInlinePayKey(`${purchaseId}:${memberId}`);
+    setInlinePayMethod("cash");
+    setInlinePayAmount("");
   }
-  function cancelCollect() {
-    setCollectingPurchaseId(null);
-    setCollectSelected(new Set());
+  function cancelInlinePay() {
+    setInlinePayKey(null);
+    setInlinePayAmount("");
   }
-  function toggleCollect(memberId: string) {
-    setCollectSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(memberId)) next.delete(memberId); else next.add(memberId);
-      return next;
+  async function recordInlinePay(purchaseId: string, memberId: string) {
+    if (inlinePaySubmitting) return;
+    setInlinePaySubmitting(true);
+    try {
+      const body: Record<string, unknown> = {
+        memberIds: [memberId],
+        method: inlinePayMethod,
+      };
+      if (inlinePayAmount !== "" && !isNaN(parseFloat(inlinePayAmount))) {
+        body.amount = parseFloat(inlinePayAmount);
+      }
+      const res = await fetch(`/api/purchases/${purchaseId}/collect`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(`Pay failed: ${data.error || data.message || res.statusText}`);
+        return;
+      }
+      cancelInlinePay();
+      loadPurchases();
+    } finally { setInlinePaySubmitting(false); }
+  }
+
+  // --- Bulk select + pay (matches football bulk-pay bar) ---
+  function toggleBulk(purchaseId: string, memberId: string) {
+    setBulkSelected((prev) => {
+      const cur = new Set(prev[purchaseId] || []);
+      if (cur.has(memberId)) cur.delete(memberId); else cur.add(memberId);
+      return { ...prev, [purchaseId]: cur };
     });
   }
-  function selectAllUnpaid(purchase: Purchase) {
-    const unpaid = purchase.splits.filter((s) => !s.paid).map((s) => s.member.id);
-    setCollectSelected(new Set(unpaid));
+  function toggleBulkAll(purchaseId: string, unpaidIds: string[]) {
+    setBulkSelected((prev) => {
+      const cur = prev[purchaseId] || new Set();
+      const next = cur.size > 0 ? new Set<string>() : new Set(unpaidIds);
+      return { ...prev, [purchaseId]: next };
+    });
   }
-  async function submitCollect(purchaseId: string) {
-    if (collectSelected.size === 0 || collecting) return;
-    setCollecting(true);
+  async function recordBulkPay(purchaseId: string) {
+    const selected = bulkSelected[purchaseId];
+    if (!selected || selected.size === 0 || bulkPaySubmitting) return;
+    setBulkPaySubmitting(true);
     try {
       const res = await fetch(`/api/purchases/${purchaseId}/collect`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ memberIds: Array.from(collectSelected), method: collectMethod }),
+        body: JSON.stringify({
+          memberIds: Array.from(selected),
+          method: bulkPayMethod[purchaseId] || "cash",
+        }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        alert(`Collect failed: ${data.error || data.message || res.statusText}`);
+        alert(`Bulk pay failed: ${data.error || data.message || res.statusText}`);
         return;
       }
-      cancelCollect();
+      setBulkSelected((prev) => ({ ...prev, [purchaseId]: new Set() }));
       loadPurchases();
-    } finally { setCollecting(false); }
+    } finally { setBulkPaySubmitting(false); }
   }
   async function unmarkPaid(purchaseId: string, memberId: string, memberName: string) {
     if (!confirm(`Undo payment for ${memberName}?`)) return;
@@ -387,7 +426,7 @@ export default function PurchasesPage() {
           const paidSplits = p.splits.filter((s) => s.paid);
           const unpaidSplits = p.splits.filter((s) => !s.paid);
           const totalPaid = paidSplits.reduce((sum, s) => sum + s.amount, 0);
-          const isCollecting = collectingPurchaseId === p.id;
+          const purchaseBulk = bulkSelected[p.id] || new Set<string>();
 
           return (
             <div key={p.id} className="bg-white rounded-xl shadow-sm border">
@@ -405,93 +444,109 @@ export default function PurchasesPage() {
                     </p>
                     {p.notes && <p className="text-sm text-gray-700 mt-1">{p.notes}</p>}
                   </div>
-                  <div className="flex gap-2 flex-wrap">
-                    {!isCollecting && unpaidSplits.length > 0 && (
-                      <button onClick={() => startCollect(p.id)}
-                        className="bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-emerald-700">
-                        Collect ({unpaidSplits.length})
-                      </button>
-                    )}
-                    <button onClick={() => handleDelete(p.id)} className="text-red-600 hover:text-red-800 text-sm font-medium">
-                      Delete
-                    </button>
-                  </div>
+                  <button onClick={() => handleDelete(p.id)} className="text-red-600 hover:text-red-800 text-sm font-medium">
+                    Delete
+                  </button>
                 </div>
               </div>
 
-              {/* Collect mode: bulk-select unpaid + method + Collect button */}
-              {isCollecting && (
-                <div className="bg-emerald-50 border-b border-emerald-200 px-4 md:px-6 py-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                    <div className="flex items-center gap-2 text-sm flex-wrap">
-                      <span className="font-semibold text-gray-800">Collect from {collectSelected.size} of {unpaidSplits.length} unpaid</span>
-                      <button type="button" onClick={() => selectAllUnpaid(p)}
-                        className="text-xs text-emerald-700 font-semibold hover:underline">Select All Unpaid</button>
-                      <button type="button" onClick={() => setCollectSelected(new Set())}
-                        className="text-xs text-gray-700 hover:underline">None</button>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <select value={collectMethod} onChange={(e) => setCollectMethod(e.target.value)}
-                        className="text-xs px-2 py-1 border border-gray-300 rounded-lg text-gray-800 font-medium bg-white">
-                        <option value="cash">Cash</option>
-                        <option value="bank_transfer">Bank Transfer</option>
-                      </select>
-                      <button onClick={() => submitCollect(p.id)} disabled={collectSelected.size === 0 || collecting}
-                        className="bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-700 disabled:opacity-50">
-                        {collecting ? "Collecting..." : `Mark ${collectSelected.size} Paid`}
-                      </button>
-                      <button onClick={cancelCollect} className="text-gray-700 text-xs font-medium hover:underline">Cancel</button>
+              <div className="px-4 md:px-6 py-3 space-y-3">
+                {/* Paid section */}
+                {paidSplits.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-bold text-emerald-700 mb-2">Paid ({paidSplits.length})</h4>
+                    <div className="space-y-1">
+                      {paidSplits.map((s) => (
+                        <div key={s.id} className="flex items-center justify-between bg-emerald-50 rounded-lg px-3 py-2">
+                          <span className="text-sm font-medium text-gray-900">{s.member.name}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold text-emerald-700">{formatAED(s.amount)}</span>
+                            <button onClick={() => unmarkPaid(p.id, s.member.id, s.member.name)}
+                              title="Click to undo"
+                              className="text-xs text-gray-500 hover:text-red-600 font-medium">undo</button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
+                )}
 
-                  <div className="bg-white rounded-lg border divide-y max-h-[300px] overflow-y-auto">
-                    {unpaidSplits.map((s) => {
-                      const checked = collectSelected.has(s.member.id);
-                      return (
-                        <label key={s.id} className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-gray-50">
-                          <input type="checkbox" checked={checked} onChange={() => toggleCollect(s.member.id)}
-                            className="rounded text-emerald-600" />
-                          <span className="flex-1 text-sm font-semibold text-gray-900">{s.member.name}</span>
-                          <span className="text-sm font-bold text-red-600">{formatAED(s.amount)}</span>
-                        </label>
-                      );
-                    })}
+                {/* Unpaid section — inline Mark Paid per row + bulk bar */}
+                {unpaidSplits.length > 0 && (
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="text-sm font-bold text-red-600">Unpaid ({unpaidSplits.length})</h4>
+                      {unpaidSplits.length > 1 && (
+                        <button onClick={() => toggleBulkAll(p.id, unpaidSplits.map((s) => s.member.id))}
+                          className="text-xs text-blue-700 font-medium hover:underline">
+                          {purchaseBulk.size > 0 ? "Deselect All" : "Select All"}
+                        </button>
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      {unpaidSplits.map((s) => {
+                        const rowKey = `${p.id}:${s.member.id}`;
+                        const isInline = inlinePayKey === rowKey;
+                        return (
+                          <div key={s.id} className="bg-red-50 rounded-lg px-3 py-2">
+                            <div className="flex items-center justify-between flex-wrap gap-2">
+                              <div className="flex items-center gap-2">
+                                <input type="checkbox" checked={purchaseBulk.has(s.member.id)}
+                                  onChange={() => toggleBulk(p.id, s.member.id)}
+                                  className="rounded text-emerald-600" />
+                                <span className="text-sm font-medium text-gray-900">{s.member.name}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-semibold text-red-600">{formatAED(s.amount)}</span>
+                                {isInline ? (
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <input type="number" step="0.01" value={inlinePayAmount}
+                                      onChange={(e) => setInlinePayAmount(e.target.value)}
+                                      placeholder={String(s.amount)}
+                                      className="w-16 text-xs px-1.5 py-1 border rounded-lg text-gray-800 text-right" />
+                                    <select value={inlinePayMethod} onChange={(e) => setInlinePayMethod(e.target.value)}
+                                      className="text-xs px-1.5 py-1 border rounded-lg text-gray-800">
+                                      <option value="cash">Cash</option>
+                                      <option value="bank_transfer">Bank</option>
+                                    </select>
+                                    <button disabled={inlinePaySubmitting} onClick={() => recordInlinePay(p.id, s.member.id)}
+                                      className="bg-emerald-600 text-white text-xs px-2.5 py-1 rounded-lg font-semibold disabled:opacity-50">
+                                      {inlinePaySubmitting ? "..." : "Pay"}
+                                    </button>
+                                    <button onClick={cancelInlinePay} className="text-gray-500 text-xs px-1.5 py-1">X</button>
+                                  </div>
+                                ) : (
+                                  <button onClick={() => startInlinePay(p.id, s.member.id)}
+                                    className="bg-emerald-600 text-white text-xs px-2.5 py-1 rounded-lg font-semibold">
+                                    Mark Paid
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Bulk pay bar — appears when checkboxes are ticked */}
+                    {purchaseBulk.size > 0 && (
+                      <div className="flex items-center gap-2 mt-2 bg-blue-50 rounded-lg px-3 py-2 flex-wrap">
+                        <span className="text-sm font-medium text-gray-800">{purchaseBulk.size} selected</span>
+                        <select value={bulkPayMethod[p.id] || "cash"}
+                          onChange={(e) => setBulkPayMethod((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                          className="text-xs px-1.5 py-1 border rounded-lg text-gray-800">
+                          <option value="cash">Cash</option>
+                          <option value="bank_transfer">Bank</option>
+                        </select>
+                        <button disabled={bulkPaySubmitting} onClick={() => recordBulkPay(p.id)}
+                          className="bg-emerald-600 text-white text-xs px-3 py-1.5 rounded-lg font-semibold disabled:opacity-50">
+                          {bulkPaySubmitting ? "Saving..." : `Mark ${purchaseBulk.size} Paid`}
+                        </button>
+                      </div>
+                    )}
                   </div>
-                </div>
-              )}
-
-              {/* Splits list — visible when not collecting */}
-              {!isCollecting && (
-                <div className="px-4 md:px-6 py-3">
-                  {paidSplits.length > 0 && (
-                    <div className="mb-2">
-                      <p className="text-xs font-semibold text-emerald-700 mb-1">✅ Paid ({paidSplits.length})</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {paidSplits.map((s) => (
-                          <span key={s.id}
-                            onClick={() => unmarkPaid(p.id, s.member.id, s.member.name)}
-                            title="Click to undo"
-                            className="text-xs px-2 py-1 rounded-full font-medium bg-emerald-100 text-emerald-800 cursor-pointer hover:bg-emerald-200">
-                            {s.member.name}: {formatAED(s.amount)} ✓
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {unpaidSplits.length > 0 && (
-                    <div>
-                      <p className="text-xs font-semibold text-red-700 mb-1">❌ Unpaid ({unpaidSplits.length})</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {unpaidSplits.map((s) => (
-                          <span key={s.id} className="text-xs px-2 py-1 rounded-full font-medium bg-red-50 text-red-800 border border-red-200">
-                            {s.member.name}: {formatAED(s.amount)}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
+                )}
+              </div>
             </div>
           );
         })}

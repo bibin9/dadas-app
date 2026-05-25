@@ -11,7 +11,7 @@ import { prisma } from "@/lib/db";
  */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { memberIds, method } = await req.json();
+  const { memberIds, method, amount } = await req.json();
   const ids = (memberIds as string[]) || [];
   if (ids.length === 0) return NextResponse.json({ ok: true, count: 0 });
 
@@ -25,6 +25,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const splitsToCollect = purchase.splits;
   if (splitsToCollect.length === 0) return NextResponse.json({ ok: true, count: 0 });
 
+  // Optional override: for single-member inline pay, the user can specify
+  // a custom paid amount (e.g. overpaying or paying less than split). For
+  // batch pay, we use the split's own amount.
+  const customAmount = typeof amount === "number" && !isNaN(amount) && splitsToCollect.length === 1
+    ? amount
+    : null;
+
   // Mark splits paid + create Payment records
   await prisma.$transaction([
     prisma.purchaseSplit.updateMany({
@@ -34,7 +41,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     prisma.payment.createMany({
       data: splitsToCollect.map((s) => ({
         memberId: s.memberId,
-        amount: s.amount,
+        amount: customAmount !== null ? customAmount : s.amount,
         method: method || "cash",
         reference: `${purchase.description} - ${purchase.date.toLocaleDateString()}`,
         notes: "",
