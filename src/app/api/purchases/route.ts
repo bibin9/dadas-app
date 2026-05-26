@@ -36,14 +36,15 @@ export async function POST(req: NextRequest) {
     include: { splits: { include: { member: true } } },
   });
 
-  // Create Payment records for members already paid at creation time
+  // Create Payment records for members already paid at creation time.
+  // Credit-method payments record amount=0 (lifetime credit absorbs the due).
   const paidEntries = splitData.filter((s) => s.paid);
   if (paidEntries.length > 0) {
     const purchaseDate = new Date(date);
     await prisma.payment.createMany({
       data: paidEntries.map((s) => ({
         memberId: s.memberId,
-        amount: s.amount,
+        amount: s.method === "credit" ? 0 : s.amount,
         method: s.method || "cash",
         reference: `${description} - ${purchaseDate.toLocaleDateString()}`,
         notes: "",

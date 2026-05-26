@@ -41,7 +41,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     prisma.payment.createMany({
       data: splitsToCollect.map((s) => ({
         memberId: s.memberId,
-        amount: customAmount !== null ? customAmount : s.amount,
+        // Credit-method payments record amount=0 so the lifetime credit
+        // balance naturally absorbs the due (same mechanic as football).
+        amount: method === "credit" ? 0 : (customAmount !== null ? customAmount : s.amount),
         method: method || "cash",
         reference: `${purchase.description} - ${purchase.date.toLocaleDateString()}`,
         notes: "",

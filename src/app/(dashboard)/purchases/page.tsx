@@ -6,6 +6,7 @@ import { formatAED, formatDate } from "@/lib/format";
 interface Member {
   id: string;
   name: string;
+  balance?: number; // lifetime Big Ticket balance: positive=owes, negative=credit
 }
 
 interface GroupMember { id: string; member: Member }
@@ -40,6 +41,7 @@ export default function PurchasesPage() {
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [description, setDescription] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState("");
@@ -154,6 +156,41 @@ export default function PurchasesPage() {
     setContribs(next);
   }
 
+  function openEdit(p: Purchase) {
+    setEditingId(p.id);
+    setShowForm(true);
+    setDescription(p.description);
+    setDate(p.date.split("T")[0]);
+    setNotes(p.notes);
+    // Populate contribs from existing splits
+    const next: Record<string, MemberContribution> = {};
+    for (const m of members) {
+      const split = p.splits.find((s) => s.member.id === m.id);
+      if (split) {
+        // existing split — selected, amount, paid status from DB
+        next[m.id] = {
+          selected: true,
+          amount: split.amount !== defaultShare ? String(split.amount) : "",
+          paid: split.paid,
+          method: "cash", // method isn't stored on split — default to cash on edit
+        };
+      } else {
+        next[m.id] = { selected: false, amount: "", paid: false, method: "cash" };
+      }
+    }
+    setContribs(next);
+    setSearch("");
+  }
+
+  function cancelForm() {
+    setShowForm(false);
+    setEditingId(null);
+    setDescription("");
+    setNotes("");
+    setContribs({});
+    setSearch("");
+  }
+
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault(); if (submitting) return; setSubmitting(true);
     try {
@@ -163,16 +200,14 @@ export default function PurchasesPage() {
         paid: contribs[id]?.paid || false,
         method: contribs[id]?.method || "cash",
       }));
-      await fetch("/api/purchases", {
-        method: "POST",
+      const url = editingId ? `/api/purchases/${editingId}` : "/api/purchases";
+      const method = editingId ? "PUT" : "POST";
+      await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ description, totalAmount, date, notes, splits }),
       });
-      setShowForm(false);
-      setDescription("");
-      setNotes("");
-      setContribs({});
-      setSearch("");
+      cancelForm();
       loadPurchases();
     } finally { setSubmitting(false); }
   }
@@ -280,10 +315,38 @@ export default function PurchasesPage() {
     catch { window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank"); }
   }
 
-  function sharePurchaseWhatsApp(p: Purchase) {
+  async function sharePurchaseWhatsApp(p: Purchase) {
     const paidSplits = p.splits.filter((s) => s.paid);
     const unpaidSplits = p.splits.filter((s) => !s.paid);
-    const collected = paidSplits.reduce((s, x) => s + x.amount, 0);
+
+    // Pull this purchase's payment records so we can show method breakdown
+    // (Big Ticket Payment records are linked to the purchase by reference)
+    let paymentByMemberId: Record<string, { amount: number; method: string }> = {};
+    try {
+      const purchaseDate = new Date(p.date);
+      const reference = `${p.description} - ${purchaseDate.toLocaleDateString()}`;
+      const r = await fetch(`/api/payments/data?profile=bigticket`);
+      if (r.ok) {
+        const data = await r.json();
+        type PmtRow = { amount: number; method: string; reference: string; member: { id: string } };
+        for (const pmt of (data.payments || []) as PmtRow[]) {
+          if (pmt.reference === reference) {
+            paymentByMemberId[pmt.member.id] = { amount: pmt.amount, method: pmt.method };
+          }
+        }
+      }
+    } catch { /* fall back to no method info */ }
+
+    let cashTotal = 0;
+    let bankTotal = 0;
+    let creditApplied = 0;
+    for (const s of paidSplits) {
+      const pmt = paymentByMemberId[s.member.id];
+      if (pmt?.method === "credit") creditApplied += s.amount;
+      else if (pmt?.method === "bank_transfer") bankTotal += pmt.amount;
+      else cashTotal += pmt?.amount ?? s.amount;
+    }
+    const collected = cashTotal + bankTotal;
     const outstanding = unpaidSplits.reduce((s, x) => s + x.amount, 0);
 
     const num = (n: number) => n.toFixed(2);
@@ -302,10 +365,14 @@ export default function PurchasesPage() {
     if (paidSplits.length > 0) {
       msg += `✅ *Paid (${paidSplits.length})*\n`;
       msg += "```\n";
-      msg += `${"MEMBER".padEnd(nameWidth)}${padAmt("AMOUNT")}\n`;
-      msg += `${"─".repeat(nameWidth + 9)}\n`;
+      msg += `${"MEMBER".padEnd(nameWidth)}${padAmt("AMOUNT")}${padAmt("BY", 7)}\n`;
+      msg += `${"─".repeat(nameWidth + 9 + 7)}\n`;
       for (const s of paidSplits) {
-        msg += `${padName(s.member.name)}${padAmt(num(s.amount))}\n`;
+        const pmt = paymentByMemberId[s.member.id];
+        const method = pmt?.method === "credit" ? "credit"
+          : pmt?.method === "bank_transfer" ? "bank"
+          : "cash";
+        msg += `${padName(s.member.name)}${padAmt(num(s.amount))}${padAmt(method, 7)}\n`;
       }
       msg += "```\n\n";
     }
@@ -318,7 +385,13 @@ export default function PurchasesPage() {
 
     msg += `📊 *Summary*\n`;
     msg += "```\n";
+    msg += `Cash         ${padAmt(num(cashTotal), 10)}\n`;
+    msg += `Bank         ${padAmt(num(bankTotal), 10)}\n`;
+    msg += `${"─".repeat(22)}\n`;
     msg += `Collected    ${padAmt(num(collected), 10)}\n`;
+    if (creditApplied > 0.01) {
+      msg += `From Credit  ${padAmt(num(creditApplied), 10)}   (info only)\n`;
+    }
     msg += `Outstanding  ${padAmt(num(outstanding), 10)}\n`;
     msg += `${"─".repeat(22)}\n`;
     msg += `Total        ${padAmt(num(p.totalAmount), 10)}\n`;
@@ -342,7 +415,7 @@ export default function PurchasesPage() {
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold text-gray-900">Big Ticket Purchases</h1>
         <button
-          onClick={() => { setShowForm(!showForm); if (showForm) { setDescription(""); setNotes(""); setContribs({}); setSearch(""); } }}
+          onClick={() => { if (showForm) { cancelForm(); } else { setShowForm(true); setEditingId(null); } }}
           className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 font-medium text-sm"
         >
           {showForm ? "Cancel" : "New Purchase"}
@@ -376,7 +449,7 @@ export default function PurchasesPage() {
       {/* ========== CREATE FORM ========== */}
       {showForm && (
         <div className="bg-white rounded-xl shadow-sm border p-4 md:p-6 mb-6">
-          <h2 className="font-semibold text-gray-900 mb-4">Log Purchase & Collect</h2>
+          <h2 className="font-semibold text-gray-900 mb-4">{editingId ? "Edit Purchase" : "Log Purchase & Collect"}</h2>
           <form onSubmit={handleCreate} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
@@ -427,13 +500,24 @@ export default function PurchasesPage() {
               <div className="bg-white rounded-lg border border-gray-200 divide-y max-h-[400px] overflow-y-auto">
                 {filteredMembers.map((m) => {
                   const c = getContrib(m.id);
+                  const bal = m.balance ?? 0;
+                  const splitAmount = c.amount !== "" && !isNaN(parseFloat(c.amount)) ? parseFloat(c.amount) : defaultShare;
+                  const hasCredit = bal < -0.01 && Math.abs(bal) >= splitAmount;
                   return (
                     <div key={m.id} className={`flex items-center gap-2 px-3 py-2.5 ${c.selected ? "bg-white" : "bg-gray-50"}`}>
                       <button type="button" onClick={() => setContrib(m.id, { selected: !c.selected })}
                         className={`w-7 h-7 rounded-full border-2 flex items-center justify-center text-xs font-bold flex-shrink-0 ${c.selected ? "bg-blue-600 border-blue-600 text-white" : "bg-white border-gray-300 text-gray-300"}`}>
                         {c.selected ? "✓" : ""}
                       </button>
-                      <span className={`flex-1 font-semibold text-sm min-w-0 truncate ${c.selected ? "text-gray-900" : "text-gray-400 line-through"}`}>{m.name}</span>
+                      <div className="flex-1 min-w-0">
+                        <span className={`font-semibold text-sm truncate block ${c.selected ? "text-gray-900" : "text-gray-400 line-through"}`}>{m.name}</span>
+                        {bal > 0.01 && (
+                          <span className="text-xs font-medium text-red-600">Owes {formatAED(bal)}</span>
+                        )}
+                        {bal < -0.01 && (
+                          <span className="text-xs font-medium text-emerald-600">Credit {formatAED(Math.abs(bal))}</span>
+                        )}
+                      </div>
                       {c.selected && (
                         <>
                           <div className="flex items-center gap-1 flex-shrink-0">
@@ -452,6 +536,9 @@ export default function PurchasesPage() {
                                 className="text-xs px-1.5 py-1 border border-gray-300 rounded-lg text-gray-800 font-medium">
                                 <option value="cash">Cash</option>
                                 <option value="bank_transfer">Bank</option>
+                                {(hasCredit || c.method === "credit") && (
+                                  <option value="credit">Credit ({formatAED(Math.abs(bal))})</option>
+                                )}
                               </select>
                             )}
                           </div>
@@ -472,10 +559,16 @@ export default function PurchasesPage() {
               )}
             </div>
 
-            <button type="submit" disabled={selectedMemberIds.length === 0 || submitting}
-              className="bg-emerald-600 text-white px-6 py-2.5 rounded-lg hover:bg-emerald-700 disabled:opacity-50 font-semibold">
-              {submitting ? "Saving..." : "Log Purchase & Collection"}
-            </button>
+            <div className="flex gap-3">
+              <button type="submit" disabled={selectedMemberIds.length === 0 || submitting}
+                className="bg-emerald-600 text-white px-6 py-2.5 rounded-lg hover:bg-emerald-700 disabled:opacity-50 font-semibold">
+                {submitting ? "Saving..." : editingId ? "Update Purchase" : "Log Purchase & Collection"}
+              </button>
+              {editingId && (
+                <button type="button" onClick={cancelForm}
+                  className="px-4 py-2.5 text-gray-700 font-medium text-sm">Cancel</button>
+              )}
+            </div>
           </form>
         </div>
       )}
@@ -509,6 +602,10 @@ export default function PurchasesPage() {
                       className="bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-green-700 flex items-center gap-1">
                       <span>📤</span>
                       <span>Share</span>
+                    </button>
+                    <button onClick={() => openEdit(p)}
+                      className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-blue-700">
+                      Edit
                     </button>
                     <button onClick={() => handleDelete(p.id)} className="text-red-600 hover:text-red-800 text-sm font-medium">
                       Delete
@@ -554,6 +651,8 @@ export default function PurchasesPage() {
                       {unpaidSplits.map((s) => {
                         const rowKey = `${p.id}:${s.member.id}`;
                         const isInline = inlinePayKey === rowKey;
+                        const memberBal = (members.find((mm) => mm.id === s.member.id)?.balance) ?? 0;
+                        const hasCredit = memberBal < -0.01 && Math.abs(memberBal) >= s.amount;
                         return (
                           <div key={s.id} className="bg-red-50 rounded-lg px-3 py-2">
                             <div className="flex items-center justify-between flex-wrap gap-2">
@@ -562,6 +661,9 @@ export default function PurchasesPage() {
                                   onChange={() => toggleBulk(p.id, s.member.id)}
                                   className="rounded text-emerald-600" />
                                 <span className="text-sm font-medium text-gray-900">{s.member.name}</span>
+                                {memberBal < -0.01 && (
+                                  <span className="text-xs font-semibold text-emerald-700">(cr {formatAED(Math.abs(memberBal))})</span>
+                                )}
                               </div>
                               <div className="flex items-center gap-2">
                                 <span className="text-sm font-semibold text-red-600">{formatAED(s.amount)}</span>
@@ -571,10 +673,17 @@ export default function PurchasesPage() {
                                       onChange={(e) => setInlinePayAmount(e.target.value)}
                                       placeholder={String(s.amount)}
                                       className="w-16 text-xs px-1.5 py-1 border rounded-lg text-gray-800 text-right" />
-                                    <select value={inlinePayMethod} onChange={(e) => setInlinePayMethod(e.target.value)}
-                                      className="text-xs px-1.5 py-1 border rounded-lg text-gray-800">
+                                    <select value={inlinePayMethod} onChange={(e) => {
+                                      const m = e.target.value;
+                                      setInlinePayMethod(m);
+                                      if (m === "credit") setInlinePayAmount("0");
+                                      else if (inlinePayMethod === "credit") setInlinePayAmount("");
+                                    }} className="text-xs px-1.5 py-1 border rounded-lg text-gray-800">
                                       <option value="cash">Cash</option>
                                       <option value="bank_transfer">Bank</option>
+                                      {hasCredit && (
+                                        <option value="credit">Credit ({formatAED(Math.abs(memberBal))})</option>
+                                      )}
                                     </select>
                                     <button disabled={inlinePaySubmitting} onClick={() => recordInlinePay(p.id, s.member.id)}
                                       className="bg-emerald-600 text-white text-xs px-2.5 py-1 rounded-lg font-semibold disabled:opacity-50">
@@ -604,6 +713,7 @@ export default function PurchasesPage() {
                           className="text-xs px-1.5 py-1 border rounded-lg text-gray-800">
                           <option value="cash">Cash</option>
                           <option value="bank_transfer">Bank</option>
+                          <option value="credit">From Credit</option>
                         </select>
                         <button disabled={bulkPaySubmitting} onClick={() => recordBulkPay(p.id)}
                           className="bg-emerald-600 text-white text-xs px-3 py-1.5 rounded-lg font-semibold disabled:opacity-50">
