@@ -315,91 +315,73 @@ export default function PurchasesPage() {
     catch { window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank"); }
   }
 
-  async function sharePurchaseWhatsApp(p: Purchase) {
-    const paidSplits = p.splits.filter((s) => s.paid);
-    const unpaidSplits = p.splits.filter((s) => !s.paid);
+  function sharePurchaseWhatsApp(p: Purchase) {
+    // Sorted: keep spreadsheet-style "s.no" numbering stable across shares
+    const splits = [...p.splits].sort((a, b) => a.member.name.localeCompare(b.member.name));
 
-    // Pull this purchase's payment records so we can show method breakdown
-    // (Big Ticket Payment records are linked to the purchase by reference)
-    let paymentByMemberId: Record<string, { amount: number; method: string }> = {};
-    try {
-      const purchaseDate = new Date(p.date);
-      const reference = `${p.description} - ${purchaseDate.toLocaleDateString()}`;
-      const r = await fetch(`/api/payments/data?profile=bigticket`);
-      if (r.ok) {
-        const data = await r.json();
-        type PmtRow = { amount: number; method: string; reference: string; member: { id: string } };
-        for (const pmt of (data.payments || []) as PmtRow[]) {
-          if (pmt.reference === reference) {
-            paymentByMemberId[pmt.member.id] = { amount: pmt.amount, method: pmt.method };
-          }
-        }
-      }
-    } catch { /* fall back to no method info */ }
-
-    let cashTotal = 0;
-    let bankTotal = 0;
-    let creditApplied = 0;
-    for (const s of paidSplits) {
-      const pmt = paymentByMemberId[s.member.id];
-      if (pmt?.method === "credit") creditApplied += s.amount;
-      else if (pmt?.method === "bank_transfer") bankTotal += pmt.amount;
-      else cashTotal += pmt?.amount ?? s.amount;
+    // ADV column = member's lifetime Big Ticket credit BEFORE this purchase.
+    // Since the dashboard balance already includes the effect of this purchase,
+    // we reverse it: preBalance = currentBalance - this_split (if member is in
+    // this purchase). preBalance > 0 means they owed; < 0 means they had credit.
+    // Display value = -preBalance (advance = credit shown positive).
+    function advForMember(memberId: string, splitAmount: number): number {
+      const m = members.find((x) => x.id === memberId);
+      if (!m) return 0;
+      const currentBal = m.balance ?? 0;
+      const preBalance = currentBal - splitAmount;
+      // Spreadsheet shows positive when in credit, negative when owed
+      const adv = -preBalance;
+      return Math.round(adv * 100) / 100;
     }
-    const collected = cashTotal + bankTotal;
-    const outstanding = unpaidSplits.reduce((s, x) => s + x.amount, 0);
 
-    const num = (n: number) => n.toFixed(2);
-    const allNames = p.splits.map((s) => s.member.name);
-    const nameWidth = Math.min(Math.max(...allNames.map((n) => n.length), 6), 14);
+    const num = (n: number) => n.toFixed(0); // integer values like the spreadsheet
+    const nameWidth = Math.min(Math.max(...splits.map((s) => s.member.name.length), 6), 14);
     const padName = (n: string) => {
       const t = n.length > nameWidth ? n.slice(0, nameWidth - 1) + "…" : n;
       return t.padEnd(nameWidth);
     };
-    const padAmt = (s: string, w = 9) => s.padStart(w);
+    const padIdx = (i: number) => String(i).padStart(2, " ");
+    const padCol = (s: string, w: number) => s.padStart(w);
 
-    let msg = `🎫 *${p.description}*\n`;
-    msg += `📅 ${formatDate(p.date)}\n`;
-    msg += `💰 Total: ${formatAED(p.totalAmount)} · 👥 ${p.splits.length} members\n\n`;
+    // Friendly date label e.g. "3rd May"
+    const d = new Date(p.date);
+    const day = d.getUTCDate();
+    const ord = (day % 10 === 1 && day !== 11) ? "st"
+      : (day % 10 === 2 && day !== 12) ? "nd"
+      : (day % 10 === 3 && day !== 13) ? "rd" : "th";
+    const monthName = d.toLocaleString("en-US", { month: "long", timeZone: "UTC" });
+    const drawLabel = `${day}${ord} ${monthName}`;
 
-    if (paidSplits.length > 0) {
-      msg += `✅ *Paid (${paidSplits.length})*\n`;
-      msg += "```\n";
-      msg += `${"MEMBER".padEnd(nameWidth)}${padAmt("AMOUNT")}${padAmt("BY", 7)}\n`;
-      msg += `${"─".repeat(nameWidth + 9 + 7)}\n`;
-      for (const s of paidSplits) {
-        const pmt = paymentByMemberId[s.member.id];
-        const method = pmt?.method === "credit" ? "credit"
-          : pmt?.method === "bank_transfer" ? "bank"
-          : "cash";
-        msg += `${padName(s.member.name)}${padAmt(num(s.amount))}${padAmt(method, 7)}\n`;
-      }
-      msg += "```\n\n";
+    // Totals
+    let totalDue = 0;
+    let totalAdv = 0;
+    for (const s of splits) {
+      totalDue += s.amount;
+      totalAdv += advForMember(s.member.id, s.amount);
     }
+    // Balance with me = current Big Ticket fund = totalPaid_lifetime - totalDue_lifetime
+    // = -(sum of all member balances). Positive = treasurer has surplus.
+    let balanceWithMe = 0;
+    for (const m of members) balanceWithMe -= (m.balance ?? 0);
+    balanceWithMe = Math.round(balanceWithMe * 100) / 100;
 
-    if (unpaidSplits.length > 0) {
-      msg += `❌ *Unpaid (${unpaidSplits.length})*\n`;
-      unpaidSplits.forEach((s) => { msg += `• ${s.member.name} — ${formatAED(s.amount)}\n`; });
-      msg += `\n`;
-    }
+    let msg = `🎫 *BIG TICKET — ${p.description}*\n`;
+    msg += `📅 Draw Date: ${drawLabel}\n\n`;
 
-    msg += `📊 *Summary*\n`;
     msg += "```\n";
-    msg += `Cash         ${padAmt(num(cashTotal), 10)}\n`;
-    msg += `Bank         ${padAmt(num(bankTotal), 10)}\n`;
-    msg += `${"─".repeat(22)}\n`;
-    msg += `Collected    ${padAmt(num(collected), 10)}\n`;
-    if (creditApplied > 0.01) {
-      msg += `From Credit  ${padAmt(num(creditApplied), 10)}   (info only)\n`;
-    }
-    msg += `Outstanding  ${padAmt(num(outstanding), 10)}\n`;
-    msg += `${"─".repeat(22)}\n`;
-    msg += `Total        ${padAmt(num(p.totalAmount), 10)}\n`;
-    msg += "```";
+    msg += `#  ${"NAME".padEnd(nameWidth)}${padCol("DUE", 5)}${padCol("ADV", 6)}\n`;
+    msg += `${"─".repeat(3 + nameWidth + 5 + 6)}\n`;
+    splits.forEach((s, i) => {
+      const adv = advForMember(s.member.id, s.amount);
+      const advCell = Math.abs(adv) < 0.5 ? "-" : num(adv);
+      msg += `${padIdx(i + 1)} ${padName(s.member.name)}${padCol(num(s.amount), 5)}${padCol(advCell, 6)}\n`;
+    });
+    msg += `${"─".repeat(3 + nameWidth + 5 + 6)}\n`;
+    msg += `   ${"TOTAL".padEnd(nameWidth)}${padCol(num(totalDue), 5)}${padCol(num(Math.round(totalAdv)), 6)}\n`;
+    msg += "```\n";
 
-    if (unpaidSplits.length > 0) {
-      msg += `\n\n_Please clear your dues at the earliest._`;
-    }
+    msg += `\n💰 *Balance with me*: ${balanceWithMe >= 0 ? formatAED(balanceWithMe) : `-${formatAED(Math.abs(balanceWithMe))}`}\n`;
+    msg += `_Till ${drawLabel} draw_`;
 
     shareText(msg);
   }
