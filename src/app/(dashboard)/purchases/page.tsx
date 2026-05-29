@@ -349,8 +349,15 @@ export default function PurchasesPage() {
     const outstanding = unpaidSplits.reduce((s, x) => s + x.amount, 0);
 
     const num = (n: number) => n.toFixed(2);
+    // Balance cell: positive = owes, negative = credit (shown "cr X"), 0 = "0"
+    const balCell = (memberId: string): string => {
+      const bal = members.find((x) => x.id === memberId)?.balance ?? 0;
+      if (bal > 0.01) return num(bal);            // owes
+      if (bal < -0.01) return `cr${num(Math.abs(bal))}`; // has credit
+      return "0";
+    };
     const allNames = p.splits.map((s) => s.member.name);
-    const nameWidth = Math.min(Math.max(...allNames.map((n) => n.length), 6), 14);
+    const nameWidth = Math.min(Math.max(...allNames.map((n) => n.length), 6), 12);
     const padName = (n: string) => {
       const t = n.length > nameWidth ? n.slice(0, nameWidth - 1) + "…" : n;
       return t.padEnd(nameWidth);
@@ -361,26 +368,31 @@ export default function PurchasesPage() {
     msg += `📅 ${formatDate(p.date)}\n`;
     msg += `💰 Total: ${formatAED(p.totalAmount)} · 👥 ${p.splits.length} members\n\n`;
 
-    // PAID table — member + amount + method (cash/bank/credit)
+    // PAID table — member + amount + method + running balance
     if (paidSplits.length > 0) {
       msg += `✅ *Paid (${paidSplits.length})*\n`;
       msg += "```\n";
-      msg += `${"MEMBER".padEnd(nameWidth)}${padAmt("AMOUNT")}${padAmt("BY", 8)}\n`;
-      msg += `${"─".repeat(nameWidth + 9 + 8)}\n`;
+      msg += `${"MEMBER".padEnd(nameWidth)}${padAmt("PAID", 7)}${padAmt("BY", 7)}${padAmt("BAL", 8)}\n`;
+      msg += `${"─".repeat(nameWidth + 7 + 7 + 8)}\n`;
       for (const s of paidSplits) {
         const pmt = paymentByMemberId[s.member.id];
         const by = pmt?.method === "credit" ? "credit"
           : pmt?.method === "bank_transfer" ? "bank" : "cash";
-        msg += `${padName(s.member.name)}${padAmt(num(s.amount))}${padAmt(by, 8)}\n`;
+        msg += `${padName(s.member.name)}${padAmt(num(s.amount), 7)}${padAmt(by, 7)}${padAmt(balCell(s.member.id), 8)}\n`;
       }
       msg += "```\n\n";
     }
 
-    // UNPAID list (the balance)
+    // UNPAID table — member + amount due + running balance
     if (unpaidSplits.length > 0) {
       msg += `❌ *Unpaid (${unpaidSplits.length})*\n`;
-      unpaidSplits.forEach((s) => { msg += `• ${s.member.name} — ${formatAED(s.amount)}\n`; });
-      msg += `\n`;
+      msg += "```\n";
+      msg += `${"MEMBER".padEnd(nameWidth)}${padAmt("DUE", 7)}${padAmt("BAL", 8)}\n`;
+      msg += `${"─".repeat(nameWidth + 7 + 8)}\n`;
+      for (const s of unpaidSplits) {
+        msg += `${padName(s.member.name)}${padAmt(num(s.amount), 7)}${padAmt(balCell(s.member.id), 8)}\n`;
+      }
+      msg += "```\n\n";
     }
 
     // Summary — same shape as football match Day Summary
