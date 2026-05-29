@@ -24,6 +24,7 @@ interface Purchase {
   id: string;
   description: string;
   totalAmount: number;
+  cost: number;
   date: string;
   notes: string;
   splits: PurchaseSplit[];
@@ -43,6 +44,7 @@ export default function PurchasesPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [description, setDescription] = useState("");
+  const [cost, setCost] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState("");
   const [contribs, setContribs] = useState<Record<string, MemberContribution>>({});
@@ -163,6 +165,7 @@ export default function PurchasesPage() {
     setEditingId(p.id);
     setShowForm(true);
     setDescription(p.description);
+    setCost(p.cost ? String(p.cost) : "");
     setDate(p.date.split("T")[0]);
     setNotes(p.notes);
     // Populate contribs from existing splits
@@ -189,6 +192,7 @@ export default function PurchasesPage() {
     setShowForm(false);
     setEditingId(null);
     setDescription("");
+    setCost("");
     setNotes("");
     setContribs({});
     setSearch("");
@@ -208,7 +212,7 @@ export default function PurchasesPage() {
       await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ description, totalAmount, date, notes, splits }),
+        body: JSON.stringify({ description, totalAmount, cost: parseFloat(cost) || 0, date, notes, splits }),
       });
       cancelForm();
       loadPurchases();
@@ -471,12 +475,18 @@ export default function PurchasesPage() {
         <div className="bg-white rounded-xl shadow-sm border p-4 md:p-6 mb-6">
           <h2 className="font-semibold text-gray-900 mb-4">{editingId ? "Edit Purchase" : "Log Purchase & Collect"}</h2>
           <form onSubmit={handleCreate} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block text-sm font-semibold text-gray-800 mb-1">Description</label>
                 <input type="text" value={description} onChange={(e) => setDescription(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-gray-900"
                   placeholder="What was purchased" required />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-800 mb-1">Ticket Cost (AED)</label>
+                <input type="number" step="0.01" value={cost} onChange={(e) => setCost(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-gray-900"
+                  placeholder="e.g. 500" />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-800 mb-1">Date</label>
@@ -649,6 +659,30 @@ export default function PurchasesPage() {
 
               {isExpanded && (
               <div className="px-4 md:px-6 py-3 space-y-3">
+                {/* P&L summary for this purchase */}
+                {(() => {
+                  const expectedCollection = p.totalAmount; // sum of splits
+                  const profit = expectedCollection - (p.cost || 0);
+                  return (
+                    <div className="bg-gray-50 rounded-lg border p-3 grid grid-cols-3 gap-2 text-center text-sm">
+                      <div>
+                        <div className="text-xs text-gray-600">Ticket Cost</div>
+                        <div className="font-bold text-red-600">{formatAED(p.cost || 0)}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-600">Expected Collection</div>
+                        <div className="font-bold text-gray-900">{formatAED(expectedCollection)}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-600">{profit >= 0 ? "Profit" : "Loss"}</div>
+                        <div className={`font-bold ${profit >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+                          {profit >= 0 ? "+" : "-"}{formatAED(Math.abs(profit))}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* Paid section */}
                 {paidSplits.length > 0 && (
                   <div>

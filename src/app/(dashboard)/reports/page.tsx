@@ -23,6 +23,7 @@ interface OutstandingMember {
 }
 interface PurchaseReport {
   id: string; name: string; date: string; totalAmount: number;
+  cost?: number; collected?: number; expectedProfit?: number; realisedProfit?: number; memberCount?: number;
 }
 
 export default function ReportsPage() {
@@ -366,6 +367,54 @@ function ReportsContent() {
             );
           })}
           {eventReports.length === 0 && <div className="text-center text-gray-600 py-12 font-medium">No events yet.</div>}
+        </div>
+      )}
+
+      {/* ========== BIG TICKET PURCHASE P&L ========== */}
+      {!isDadas && purchaseReports.length > 0 && (
+        <div className="mb-6">
+          <h2 className="font-bold text-gray-900 mb-3">Purchase P&amp;L</h2>
+          <div className="space-y-2">
+            {purchaseReports.map((pr) => {
+              const cost = pr.cost ?? 0;
+              const collected = pr.collected ?? 0;
+              const expectedProfit = pr.expectedProfit ?? (pr.totalAmount - cost);
+              const realisedProfit = pr.realisedProfit ?? (collected - cost);
+              return (
+                <div key={pr.id} className="bg-white rounded-xl shadow-sm border p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <div className="font-semibold text-gray-900">{pr.name}</div>
+                      <div className="text-xs text-gray-600">{formatDate(pr.date)} · {pr.memberCount ?? 0} members</div>
+                    </div>
+                    <span className={`text-sm px-2 py-1 rounded-full font-bold ${expectedProfit >= 0 ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
+                      {expectedProfit >= 0 ? "Profit " : "Loss "}{expectedProfit >= 0 ? "+" : "-"}{formatAED(Math.abs(expectedProfit))}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                    <div className="bg-red-50 rounded-lg p-2">
+                      <span className="text-xs text-gray-600">Ticket Cost</span>
+                      <div className="font-bold text-red-600">{formatAED(cost)}</div>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-2">
+                      <span className="text-xs text-gray-600">Expected Collection</span>
+                      <div className="font-bold text-gray-900">{formatAED(pr.totalAmount)}</div>
+                    </div>
+                    <div className="bg-emerald-50 rounded-lg p-2">
+                      <span className="text-xs text-gray-600">Collected</span>
+                      <div className="font-bold text-emerald-700">{formatAED(collected)}</div>
+                    </div>
+                    <div className={`rounded-lg p-2 ${realisedProfit >= 0 ? "bg-emerald-50" : "bg-red-50"}`}>
+                      <span className="text-xs text-gray-600">Net (collected − cost)</span>
+                      <div className={`font-bold ${realisedProfit >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+                        {realisedProfit >= 0 ? "+" : "-"}{formatAED(Math.abs(realisedProfit))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 

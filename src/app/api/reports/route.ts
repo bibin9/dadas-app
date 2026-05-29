@@ -239,7 +239,7 @@ async function handleBigTicket() {
     }),
     prisma.purchase.findMany({
       orderBy: { date: "desc" },
-      select: { id: true, description: true, date: true, totalAmount: true },
+      select: { id: true, description: true, date: true, totalAmount: true, cost: true, splits: { select: { amount: true, paid: true } } },
     }),
     prisma.purchaseSplit.findMany({ where: { paid: false }, select: { memberId: true, amount: true } }),
     prisma.memberGroupMember.findMany({ select: { memberId: true, groupId: true } }),
@@ -256,12 +256,24 @@ async function handleBigTicket() {
     unpaidSplits = allUnpaidSplits.filter((s) => memberIds.has(s.memberId));
   }
 
-  const purchaseReports = purchases.map((p) => ({
-    id: p.id,
-    name: p.description,
-    date: p.date,
-    totalAmount: p.totalAmount,
-  }));
+  // Per-purchase P&L: expected collection (sum of splits) vs ticket cost
+  const purchaseReports = purchases.map((p) => {
+    let collected = 0;
+    for (const s of p.splits) if (s.paid) collected += s.amount;
+    const expectedCollection = p.totalAmount;
+    const cost = p.cost || 0;
+    return {
+      id: p.id,
+      name: p.description,
+      date: p.date,
+      totalAmount: expectedCollection,
+      cost,
+      collected,
+      expectedProfit: Math.round((expectedCollection - cost) * 100) / 100,
+      realisedProfit: Math.round((collected - cost) * 100) / 100,
+      memberCount: p.splits.length,
+    };
+  });
 
   const unpaidMap = new Map<string, number>();
   for (const u of unpaidSplits) unpaidMap.set(u.memberId, (unpaidMap.get(u.memberId) || 0) + u.amount);

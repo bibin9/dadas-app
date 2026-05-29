@@ -102,7 +102,8 @@ model EventDue {
 model Purchase {
   id          String   @id @default(cuid())
   description String
-  totalAmount Float
+  totalAmount Float                      // expected collection (sum of member splits)
+  cost        Float    @default(0)       // actual cost of the ticket/purchase (for P&L)
   date        DateTime
   notes       String   @default("")
   createdAt   DateTime @default(now())

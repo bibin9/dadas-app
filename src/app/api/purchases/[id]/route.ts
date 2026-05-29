@@ -13,7 +13,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { description, totalAmount, date, notes, splits } = await req.json();
+  const { description, totalAmount, cost, date, notes, splits } = await req.json();
   const splitData = splits as { memberId: string; amount: number; paid?: boolean; method?: string }[];
 
   const purchase = await prisma.purchase.findUnique({
@@ -28,6 +28,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     data: {
       description,
       totalAmount,
+      cost: cost || 0,
       date: new Date(date),
       notes: notes || "",
     },

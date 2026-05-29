@@ -185,6 +185,7 @@ const migrations = [
   `ALTER TABLE Settings ADD COLUMN bigTicketGroupId TEXT NOT NULL DEFAULT ''`,
   `ALTER TABLE Payment ADD COLUMN category TEXT NOT NULL DEFAULT 'dadas'`,
   `ALTER TABLE MonthlyClose ADD COLUMN creditsAtClose REAL NOT NULL DEFAULT 0`,
+  `ALTER TABLE Purchase ADD COLUMN cost REAL NOT NULL DEFAULT 0`,
 ];
 for (const sql of migrations) {
   try { await db.execute(sql); } catch { /* column already exists */ }
