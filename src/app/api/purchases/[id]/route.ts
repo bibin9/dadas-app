@@ -22,6 +22,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   });
   if (!purchase) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  // Who was paid BEFORE this edit (so we only touch payments for status changes)
+  const oldPaidMemberIds = new Set(purchase.splits.filter((s) => s.paid).map((s) => s.memberId));
+
   // Update purchase metadata
   await prisma.purchase.update({
     where: { id },
@@ -46,27 +49,23 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     })),
   });
 
-  // Sync Big Ticket payments for THIS purchase: delete payments tied to this
-  // purchase (matched by reference + memberId since Payment has no purchaseId)
-  // then recreate based on the new paid set.
+  // ── NON-DESTRUCTIVE payment sync ──
+  // IMPORTANT: never delete/recreate payments for members who were already
+  // paid — that would wipe any advance/overpayment amounts (their credit).
+  // Only:
+  //   • create a payment for members who are NEWLY marked paid
+  //   • delete the payment for members who are NEWLY marked unpaid
+  //   • re-point reference if description/date changed (preserve amount)
   const purchaseDate = new Date(date);
   const reference = `${description} - ${purchaseDate.toLocaleDateString()}`;
-  const memberIds = splitData.map((s) => s.memberId);
-
-  // Best-effort match on old reference too (in case description/date changed)
   const oldReference = `${purchase.description} - ${purchase.date.toLocaleDateString()}`;
-  await prisma.payment.deleteMany({
-    where: {
-      category: "bigticket",
-      memberId: { in: memberIds },
-      OR: [{ reference }, { reference: oldReference }],
-    },
-  });
+  const newPaidMemberIds = new Set(splitData.filter((s) => s.paid).map((s) => s.memberId));
 
-  const paidSplits = splitData.filter((s) => s.paid);
-  if (paidSplits.length > 0) {
+  // Newly paid → create a payment (default to split amount)
+  const newlyPaid = splitData.filter((s) => s.paid && !oldPaidMemberIds.has(s.memberId));
+  if (newlyPaid.length > 0) {
     await prisma.payment.createMany({
-      data: paidSplits.map((s) => ({
+      data: newlyPaid.map((s) => ({
         memberId: s.memberId,
         amount: s.method === "credit" ? 0 : s.amount,
         method: s.method || "cash",
@@ -76,6 +75,29 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         category: "bigticket",
       })),
     });
+  }
+
+  // Newly unpaid → delete their payment for this purchase
+  const newlyUnpaid = [...oldPaidMemberIds].filter((mid) => !newPaidMemberIds.has(mid));
+  if (newlyUnpaid.length > 0) {
+    await prisma.payment.deleteMany({
+      where: {
+        category: "bigticket",
+        memberId: { in: newlyUnpaid },
+        OR: [{ reference }, { reference: oldReference }],
+      },
+    });
+  }
+
+  // Stay-paid members: if reference changed, re-point it (keep amounts intact)
+  if (reference !== oldReference) {
+    const stayPaid = [...newPaidMemberIds].filter((mid) => oldPaidMemberIds.has(mid));
+    if (stayPaid.length > 0) {
+      await prisma.payment.updateMany({
+        where: { category: "bigticket", memberId: { in: stayPaid }, reference: oldReference },
+        data: { reference },
+      });
+    }
   }
 
   return NextResponse.json({ ok: true });

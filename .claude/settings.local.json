@@ -125,7 +125,8 @@
       "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('Updated bigTicketGroupId:', repr\\(d.get\\('bigTicketGroupId'\\)\\)\\)\")",
       "Bash(curl -s -b /tmp/c.txt \"https://dadas-app.vercel.app/api/dashboard?profile=bigticket\")",
       "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('Big Ticket members shown:', d['totals']['memberCount']\\); print\\('Credits:', d['totals'].get\\('totalCredits'\\)\\)\")",
-      "Bash(TURSO_DATABASE_URL=\"libsql://dadas-app-bibin.aws-ap-south-1.turso.io\" TURSO_AUTH_TOKEN=\"eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3NzYwMjQwNjUsImlkIjoiMDE5ZDdjOGMtNzAwMS03Mjg5LTk3MzItMzEwOTJjMTQ3ZTBmIiwicmlkIjoiNmFjYjM4NDgtZWY0My00YzFhLThiODAtMTA2NWY0MWE5ZWU2In0.IZ-AsANLB71CDlve4qa6onFC_vGzq3pE_J4xxq_a7izT1Rt7lm08HDg\" node prisma/seed-turso.mjs)"
+      "Bash(TURSO_DATABASE_URL=\"libsql://dadas-app-bibin.aws-ap-south-1.turso.io\" TURSO_AUTH_TOKEN=\"eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3NzYwMjQwNjUsImlkIjoiMDE5ZDdjOGMtNzAwMS03Mjg5LTk3MzItMzEwOTJjMTQ3ZTBmIiwicmlkIjoiNmFjYjM4NDgtZWY0My00YzFhLThiODAtMTA2NWY0MWE5ZWU2In0.IZ-AsANLB71CDlve4qa6onFC_vGzq3pE_J4xxq_a7izT1Rt7lm08HDg\" node prisma/seed-turso.mjs)",
+      "Bash(cd \"C:\\\\Bibin\\\\dadas-app\" && npx vercel env pull /tmp/prod.txt --environment=production 2>&1 | tail -1 && grep -E \"GITHUB_BACKUP_REPO\" /tmp/prod.txt)"
     ]
   }
 }
