@@ -393,17 +393,25 @@ export default function PurchasesPage() {
       msg += "```\n\n";
     }
 
-    // Summary — same shape as football match Day Summary
+    // Total credits in hand = sum of all members' credit balances (owed back)
+    let creditsInHand = 0;
+    for (const m of members) {
+      const bal = m.balance ?? 0;
+      if (bal < -0.01) creditsInHand += -bal;
+    }
+
+    // Summary — Total paid (cash), bank, total credits in hand
     msg += `📊 *Summary*\n`;
     msg += "```\n";
-    msg += `Cash         ${padCol(num(cashTotal), 8)}\n`;
-    msg += `Bank         ${padCol(num(bankTotal), 8)}\n`;
-    msg += `${"─".repeat(20)}\n`;
-    msg += `Collected    ${padCol(num(collected), 8)}\n`;
+    msg += `Cash          ${padCol(num(cashTotal), 8)}\n`;
+    msg += `Bank          ${padCol(num(bankTotal), 8)}\n`;
+    msg += `${"─".repeat(21)}\n`;
+    msg += `Collected     ${padCol(num(collected), 8)}\n`;
     if (creditApplied > 0.01) {
-      msg += `From Credit  ${padCol(num(creditApplied), 8)}\n`;
+      msg += `From Credit   ${padCol(num(creditApplied), 8)}\n`;
     }
-    msg += `Outstanding  ${padCol(num(outstanding), 8)}\n`;
+    msg += `Outstanding   ${padCol(num(outstanding), 8)}\n`;
+    msg += `Credits Hand  ${padCol(num(creditsInHand), 8)}\n`;
     msg += "```";
 
     if (unpaidSplits.length > 0) {

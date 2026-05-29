@@ -131,18 +131,20 @@ async function handleDadas() {
 }
 
 async function handleBigTicket() {
-  // Big Ticket unchanged — monthly close only applies to the DADAS profile
-  const [settings, allMembers, purchases, allGroupLinks] = await Promise.all([
+  const [settings, allMembers, purchases, allGroupLinks, allSplits, allPayments] = await Promise.all([
     prisma.settings.findUnique({ where: { id: "main" } }),
     prisma.member.findMany({
       where: { active: true },
       orderBy: { name: "asc" },
-      include: { purchaseSplits: { select: { amount: true, paid: true } } },
+      select: { id: true, name: true, phone: true },
     }),
     prisma.purchase.findMany({ select: { totalAmount: true } }),
     prisma.memberGroupMember.findMany({ select: { memberId: true, groupId: true } }),
+    prisma.purchaseSplit.findMany({ select: { memberId: true, amount: true } }),
+    prisma.payment.findMany({ where: { category: "bigticket" }, select: { memberId: true, amount: true } }),
   ]);
 
+  // Show ONLY Big Ticket group members (if a group is configured)
   const bigTicketGroupId = settings?.bigTicketGroupId || "";
   let members = allMembers;
   if (bigTicketGroupId) {
@@ -155,27 +157,32 @@ async function handleBigTicket() {
   let totalPurchaseValue = 0;
   for (const p of purchases) totalPurchaseValue += p.totalAmount;
 
+  // Lifetime per-member: due = sum of splits, paid = sum of bigticket payments
+  const dueMap = new Map<string, number>();
+  for (const s of allSplits) dueMap.set(s.memberId, (dueMap.get(s.memberId) || 0) + s.amount);
+  const paidMap = new Map<string, number>();
+  for (const p of allPayments) paidMap.set(p.memberId, (paidMap.get(p.memberId) || 0) + p.amount);
+
   const balances = members.map((member) => {
-    let totalDue = 0;
-    let totalPaid = 0;
-    for (const s of member.purchaseSplits) {
-      if (s.paid) totalPaid += s.amount;
-      else totalDue += s.amount;
-    }
+    const totalDue = dueMap.get(member.id) || 0;
+    const totalPaid = paidMap.get(member.id) || 0;
+    const balance = Math.round((totalDue - totalPaid) * 100) / 100;
     return {
       id: member.id,
       name: member.name,
       phone: member.phone,
       totalDue,
       totalPaid,
-      balance: totalDue,
+      balance, // positive = owes, negative = credit
     };
   });
 
   let totalOutstanding = 0;
   let totalCollected = 0;
+  let totalCredits = 0; // money held that's owed back to members (overpayments)
   for (const b of balances) {
-    totalOutstanding += b.totalDue;
+    if (b.balance > 0) totalOutstanding += b.balance;
+    else if (b.balance < 0) totalCredits += -b.balance;
     totalCollected += b.totalPaid;
   }
 
@@ -186,6 +193,7 @@ async function handleBigTicket() {
       totalPurchases: totalPurchaseValue,
       totalOutstanding,
       totalCollected,
+      totalCredits,
       memberCount: members.length,
       groupName: settings?.groupName || "Company",
     },

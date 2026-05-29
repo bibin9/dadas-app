@@ -36,6 +36,7 @@ interface BigTicketTotals {
   totalPurchases: number;
   totalOutstanding: number;
   totalCollected: number;
+  totalCredits: number;
   memberCount: number;
   groupName: string;
 }
@@ -135,10 +136,17 @@ export default function DashboardPage() {
           />
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 mb-6 md:mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6 md:mb-8">
           <Card label="Total Purchases" value={formatAED(totals.totalPurchases)} color="purple" onClick={() => router.push("/purchases")} />
           <Card label="Collected" value={formatAED(totals.totalCollected)} color="emerald" />
           <Card label="Outstanding" value={formatAED(totals.totalOutstanding)} color={totals.totalOutstanding > 0 ? "amber" : "emerald"} onClick={() => router.push("/reports?tab=outstanding")} />
+          <Card
+            label="Members Credits"
+            value={formatAED(totals.totalCredits)}
+            color={totals.totalCredits > 0 ? "blue" : "gray"}
+            subtitle={totals.totalCredits > 0 ? "Credit in hand (owed back)" : "No credits"}
+            onClick={() => setBalanceFilter("credits")}
+          />
         </div>
       )}
 
