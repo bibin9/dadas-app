@@ -205,6 +205,7 @@ export default function PurchasesPage() {
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault(); if (submitting) return;
     if (!drawDate) { alert("Draw Date is required."); return; }
+    if (cost === "" || isNaN(parseFloat(cost)) || parseFloat(cost) < 0) { alert("Ticket Cost is required."); return; }
     setSubmitting(true);
     try {
       const splits = selectedMemberIds.map((id) => ({
@@ -498,10 +499,10 @@ export default function PurchasesPage() {
                   placeholder="What was purchased" required />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-800 mb-1">Ticket Cost (AED)</label>
-                <input type="number" step="0.01" value={cost} onChange={(e) => setCost(e.target.value)}
+                <label className="block text-sm font-semibold text-gray-800 mb-1">Ticket Cost (AED) <span className="text-red-600">*</span></label>
+                <input type="number" step="0.01" min="0" value={cost} onChange={(e) => setCost(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-gray-900"
-                  placeholder="e.g. 500" />
+                  placeholder="e.g. 500" required />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-800 mb-1">Date</label>
