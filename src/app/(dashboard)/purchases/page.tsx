@@ -350,14 +350,17 @@ export default function PurchasesPage() {
       }
     } catch { /* fall back to no method info */ }
 
+    // Per-purchase split allocation by method — use the SPLIT amount (each
+    // member's 30 share), NOT the full payment amount. Advance/overpayments
+    // belong to future draws and show up only in the Credits Hand line.
     let cashTotal = 0;
     let bankTotal = 0;
     let creditApplied = 0;
     for (const s of paidSplits) {
       const pmt = paymentByMemberId[s.member.id];
       if (pmt?.method === "credit") creditApplied += s.amount;
-      else if (pmt?.method === "bank_transfer") bankTotal += (pmt.amount || s.amount);
-      else cashTotal += (pmt?.amount ?? s.amount);
+      else if (pmt?.method === "bank_transfer") bankTotal += s.amount;
+      else cashTotal += s.amount;
     }
     const collected = cashTotal + bankTotal;
     const outstanding = unpaidSplits.reduce((s, x) => s + x.amount, 0);
