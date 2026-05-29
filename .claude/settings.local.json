@@ -117,7 +117,14 @@
       "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(f'Events: {len\\(d[\\\\\"eventReports\\\\\"]\\)}, Outstanding: {len\\(d[\\\\\"outstandingReport\\\\\"]\\)} members'\\); print\\('Top 3 outstanding:'\\); [print\\(f'  {m[\\\\\"name\\\\\"]}: AED {m[\\\\\"balance\\\\\"]}'\\) for m in d['outstandingReport'][:3]]; print\\('First event:'\\); print\\(f'  {d[\\\\\"eventReports\\\\\"][0][\\\\\"name\\\\\"]}: Due={d[\\\\\"eventReports\\\\\"][0][\\\\\"totalDue\\\\\"]} Paid={d[\\\\\"eventReports\\\\\"][0][\\\\\"totalPaid\\\\\"]} Outstanding={d[\\\\\"eventReports\\\\\"][0][\\\\\"outstanding\\\\\"]} unpaid={d[\\\\\"eventReports\\\\\"][0][\\\\\"unpaidCount\\\\\"]}/{d[\\\\\"eventReports\\\\\"][0][\\\\\"playerCount\\\\\"]}'\\)\")",
       "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); guests=[m for m in d['members'] if m.get\\('isGuest'\\)]; print\\(f'Guests: {len\\(guests\\)}'\\); first=guests[0] if guests else None; print\\(f'Sample: {first[\\\\\"name\\\\\"] if first else \\\\\"none\\\\\"} \\(id: {first[\\\\\"id\\\\\"] if first else \\\\\"-\\\\\"}\\)'\\)\")",
       "Bash(curl -sw \"STATUS:%{http_code}\\\\n\" -b /tmp/c.txt -X DELETE \"https://dadas-app.vercel.app/api/members/cmop79iok000304l749h9n194\")",
-      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); guests=[m for m in d['members'] if m.get\\('isGuest'\\)]; print\\(f'Guests remaining: {len\\(guests\\)}'\\)\")"
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); guests=[m for m in d['members'] if m.get\\('isGuest'\\)]; print\\(f'Guests remaining: {len\\(guests\\)}'\\)\")",
+      "Bash(curl -s -b /tmp/c.txt \"https://dadas-app.vercel.app/api/settings/data\")",
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); s=d['settings']; print\\('bigTicketGroupId:', repr\\(s.get\\('bigTicketGroupId'\\)\\)\\); print\\('Groups:'\\); [print\\(f'  {g[\\\\\"id\\\\\"]}: {g[\\\\\"name\\\\\"]} \\({len\\(g[\\\\\"members\\\\\"]\\)} members\\)'\\) for g in d['groups']]\")",
+      "Bash(python -c ' *)",
+      "Bash(curl -s -b /tmp/c.txt -X PUT \"https://dadas-app.vercel.app/api/settings\" -H \"Content-Type: application/json\" -d @/tmp/payload.json)",
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('Updated bigTicketGroupId:', repr\\(d.get\\('bigTicketGroupId'\\)\\)\\)\")",
+      "Bash(curl -s -b /tmp/c.txt \"https://dadas-app.vercel.app/api/dashboard?profile=bigticket\")",
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('Big Ticket members shown:', d['totals']['memberCount']\\); print\\('Credits:', d['totals'].get\\('totalCredits'\\)\\)\")"
     ]
   }
 }

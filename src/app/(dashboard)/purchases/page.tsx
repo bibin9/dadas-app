@@ -63,6 +63,9 @@ export default function PurchasesPage() {
   const [bulkPayMethod, setBulkPayMethod] = useState<Record<string, string>>({});
   const [bulkPaySubmitting, setBulkPaySubmitting] = useState(false);
 
+  // Which purchase cards are expanded (collapsed by default — show heading only)
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
   const [loading, setLoading] = useState(true);
 
   useEffect(() => { loadAll(); }, []);
@@ -598,22 +601,34 @@ export default function PurchasesPage() {
           const totalPaid = paidSplits.reduce((sum, s) => sum + s.amount, 0);
           const purchaseBulk = bulkSelected[p.id] || new Set<string>();
 
+          const isExpanded = expandedId === p.id;
+          const fullyPaid = unpaidSplits.length === 0 && p.splits.length > 0;
+
           return (
             <div key={p.id} className="bg-white rounded-xl shadow-sm border">
-              <div className="px-4 md:px-6 py-3 md:py-4 border-b">
+              {/* Heading — click to expand/collapse */}
+              <div className={`px-4 md:px-6 py-3 md:py-4 ${isExpanded ? "border-b" : ""}`}>
                 <div className="flex items-start justify-between gap-2 flex-wrap">
-                  <div className="min-w-0">
-                    <h3 className="font-semibold text-gray-900">{p.description}</h3>
-                    <p className="text-sm text-gray-700">
-                      {formatDate(p.date)} · {formatAED(p.totalAmount)} · {p.splits.length} members
-                    </p>
-                    <p className="text-xs text-gray-600 mt-0.5">
-                      Collected: <span className="font-semibold text-emerald-700">{formatAED(totalPaid)}</span>
-                      {" · "}
-                      Outstanding: <span className="font-semibold text-red-600">{formatAED(p.totalAmount - totalPaid)}</span>
-                    </p>
-                    {p.notes && <p className="text-sm text-gray-700 mt-1">{p.notes}</p>}
-                  </div>
+                  <button onClick={() => setExpandedId(isExpanded ? null : p.id)}
+                    className="min-w-0 text-left flex-1 flex items-start gap-2">
+                    <span className={`text-gray-400 mt-0.5 transition-transform ${isExpanded ? "rotate-90" : ""}`}>▶</span>
+                    <span className="min-w-0">
+                      <span className="font-semibold text-gray-900 flex items-center gap-2 flex-wrap">
+                        {p.description}
+                        {fullyPaid
+                          ? <span className="text-xs px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">Settled</span>
+                          : <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-semibold">{unpaidSplits.length} unpaid</span>}
+                      </span>
+                      <span className="block text-sm text-gray-700">
+                        {formatDate(p.date)} · {formatAED(p.totalAmount)} · {p.splits.length} members
+                      </span>
+                      <span className="block text-xs text-gray-600 mt-0.5">
+                        Collected: <span className="font-semibold text-emerald-700">{formatAED(totalPaid)}</span>
+                        {" · "}
+                        Outstanding: <span className="font-semibold text-red-600">{formatAED(p.totalAmount - totalPaid)}</span>
+                      </span>
+                    </span>
+                  </button>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <button onClick={() => sharePurchaseWhatsApp(p)}
                       className="bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-green-700 flex items-center gap-1">
@@ -629,8 +644,10 @@ export default function PurchasesPage() {
                     </button>
                   </div>
                 </div>
+                {p.notes && isExpanded && <p className="text-sm text-gray-700 mt-1">{p.notes}</p>}
               </div>
 
+              {isExpanded && (
               <div className="px-4 md:px-6 py-3 space-y-3">
                 {/* Paid section */}
                 {paidSplits.length > 0 && (
@@ -741,6 +758,7 @@ export default function PurchasesPage() {
                   </div>
                 )}
               </div>
+              )}
             </div>
           );
         })}
