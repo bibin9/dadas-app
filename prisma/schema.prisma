@@ -104,7 +104,8 @@ model Purchase {
   description String
   totalAmount Float                      // expected collection (sum of member splits)
   cost        Float    @default(0)       // actual cost of the ticket/purchase (for P&L)
-  date        DateTime
+  date        DateTime                   // purchase/entry date
+  drawDate    DateTime?                  // Big Ticket lottery draw date
   notes       String   @default("")
   createdAt   DateTime @default(now())
 

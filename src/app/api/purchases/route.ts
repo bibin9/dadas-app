@@ -12,7 +12,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const { description, totalAmount, cost, date, notes, splits } = await req.json();
+  const { description, totalAmount, cost, date, drawDate, notes, splits } = await req.json();
 
   // splits: [{ memberId, amount, paid?: boolean, method?: string }]
   // Members marked as "paid" inline get their PurchaseSplit.paid set + a
@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
       totalAmount,
       cost: cost || 0,
       date: new Date(date),
+      drawDate: drawDate ? new Date(drawDate) : null,
       notes: notes || "",
       splits: {
         create: splitData.map((s) => ({

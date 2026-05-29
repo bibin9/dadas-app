@@ -26,6 +26,7 @@ interface Purchase {
   totalAmount: number;
   cost: number;
   date: string;
+  drawDate: string | null;
   notes: string;
   splits: PurchaseSplit[];
 }
@@ -46,6 +47,7 @@ export default function PurchasesPage() {
   const [description, setDescription] = useState("");
   const [cost, setCost] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [drawDate, setDrawDate] = useState("");
   const [notes, setNotes] = useState("");
   const [contribs, setContribs] = useState<Record<string, MemberContribution>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -167,6 +169,7 @@ export default function PurchasesPage() {
     setDescription(p.description);
     setCost(p.cost ? String(p.cost) : "");
     setDate(p.date.split("T")[0]);
+    setDrawDate(p.drawDate ? p.drawDate.split("T")[0] : "");
     setNotes(p.notes);
     // Populate contribs from existing splits
     const next: Record<string, MemberContribution> = {};
@@ -193,13 +196,16 @@ export default function PurchasesPage() {
     setEditingId(null);
     setDescription("");
     setCost("");
+    setDrawDate("");
     setNotes("");
     setContribs({});
     setSearch("");
   }
 
   async function handleCreate(e: React.FormEvent) {
-    e.preventDefault(); if (submitting) return; setSubmitting(true);
+    e.preventDefault(); if (submitting) return;
+    if (!drawDate) { alert("Draw Date is required."); return; }
+    setSubmitting(true);
     try {
       const splits = selectedMemberIds.map((id) => ({
         memberId: id,
@@ -212,7 +218,7 @@ export default function PurchasesPage() {
       await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ description, totalAmount, cost: parseFloat(cost) || 0, date, notes, splits }),
+        body: JSON.stringify({ description, totalAmount, cost: parseFloat(cost) || 0, date, drawDate, notes, splits }),
       });
       cancelForm();
       loadPurchases();
@@ -373,6 +379,7 @@ export default function PurchasesPage() {
     const padCol = (s: string, w: number) => s.padStart(w);
 
     let msg = `🎫 *${p.description}*\n`;
+    if (p.drawDate) msg += `🎰 Draw Date: ${formatDate(p.drawDate)}\n`;
     msg += `📅 ${formatDate(p.date)}\n`;
     msg += `💰 Total: ${formatAED(p.totalAmount)} · 👥 ${p.splits.length} members\n\n`;
 
@@ -407,18 +414,26 @@ export default function PurchasesPage() {
       if (bal < -0.01) creditsInHand += -bal;
     }
 
-    // Summary — Total paid (cash), bank, total credits in hand
+    // Expected collection = total due. Show "21 × 30" when every split is equal.
+    const expected = p.totalAmount;
+    const firstAmt = p.splits[0]?.amount ?? 0;
+    const allEqual = p.splits.length > 0 && p.splits.every((s) => Math.abs(s.amount - firstAmt) < 0.01);
+    const expectedLabel = allEqual ? ` (${p.splits.length}×${num(firstAmt)})` : "";
+
+    // Summary — expected total, cash/bank split, credits in hand, outstanding
     msg += `📊 *Summary*\n`;
     msg += "```\n";
-    msg += `Cash          ${padCol(num(cashTotal), 8)}\n`;
-    msg += `Bank          ${padCol(num(bankTotal), 8)}\n`;
-    msg += `${"─".repeat(21)}\n`;
-    msg += `Collected     ${padCol(num(collected), 8)}\n`;
+    msg += `Expected   ${padCol(num(expected), 9)}${expectedLabel}\n`;
+    msg += `${"─".repeat(20)}\n`;
+    msg += `Cash       ${padCol(num(cashTotal), 9)}\n`;
+    msg += `Bank       ${padCol(num(bankTotal), 9)}\n`;
     if (creditApplied > 0.01) {
-      msg += `From Credit   ${padCol(num(creditApplied), 8)}\n`;
+      msg += `From Credit${padCol(num(creditApplied), 9)}\n`;
     }
-    msg += `Outstanding   ${padCol(num(outstanding), 8)}\n`;
-    msg += `Credits Hand  ${padCol(num(creditsInHand), 8)}\n`;
+    msg += `${"─".repeat(20)}\n`;
+    msg += `Collected  ${padCol(num(collected), 9)}\n`;
+    msg += `Credits Hd ${padCol(num(creditsInHand), 9)}\n`;
+    msg += `Outstanding${padCol(num(outstanding), 9)}\n`;
     msg += "```";
 
     if (unpaidSplits.length > 0) {
@@ -494,6 +509,12 @@ export default function PurchasesPage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-gray-900"
                   required />
               </div>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-800 mb-1">Draw Date <span className="text-red-600">*</span></label>
+              <input type="date" value={drawDate} onChange={(e) => setDrawDate(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-gray-900"
+                required />
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-800 mb-1">Notes</label>
@@ -630,7 +651,7 @@ export default function PurchasesPage() {
                           : <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-semibold">{unpaidSplits.length} unpaid</span>}
                       </span>
                       <span className="block text-sm text-gray-700">
-                        {formatDate(p.date)} · {formatAED(p.totalAmount)} · {p.splits.length} members
+                        {p.drawDate ? `🎰 Draw ${formatDate(p.drawDate)} · ` : ""}{formatAED(p.totalAmount)} · {p.splits.length} members
                       </span>
                       <span className="block text-xs text-gray-600 mt-0.5">
                         Collected: <span className="font-semibold text-emerald-700">{formatAED(totalPaid)}</span>

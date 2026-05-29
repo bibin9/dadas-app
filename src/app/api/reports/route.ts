@@ -239,7 +239,7 @@ async function handleBigTicket() {
     }),
     prisma.purchase.findMany({
       orderBy: { date: "desc" },
-      select: { id: true, description: true, date: true, totalAmount: true, cost: true, splits: { select: { amount: true, paid: true } } },
+      select: { id: true, description: true, date: true, drawDate: true, totalAmount: true, cost: true, splits: { select: { amount: true, paid: true } } },
     }),
     prisma.purchaseSplit.findMany({ where: { paid: false }, select: { memberId: true, amount: true } }),
     prisma.memberGroupMember.findMany({ select: { memberId: true, groupId: true } }),
@@ -266,6 +266,7 @@ async function handleBigTicket() {
       id: p.id,
       name: p.description,
       date: p.date,
+      drawDate: p.drawDate,
       totalAmount: expectedCollection,
       cost,
       collected,

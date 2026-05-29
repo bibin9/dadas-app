@@ -22,7 +22,7 @@ interface OutstandingMember {
   id: string; name: string; phone: string; totalDue: number; totalPaid: number; balance: number;
 }
 interface PurchaseReport {
-  id: string; name: string; date: string; totalAmount: number;
+  id: string; name: string; date: string; drawDate?: string | null; totalAmount: number;
   cost?: number; collected?: number; expectedProfit?: number; realisedProfit?: number; memberCount?: number;
 }
 
@@ -385,7 +385,7 @@ function ReportsContent() {
                   <div className="flex items-center justify-between mb-2">
                     <div>
                       <div className="font-semibold text-gray-900">{pr.name}</div>
-                      <div className="text-xs text-gray-600">{formatDate(pr.date)} · {pr.memberCount ?? 0} members</div>
+                      <div className="text-xs text-gray-600">{pr.drawDate ? `🎰 Draw ${formatDate(pr.drawDate)} · ` : ""}{pr.memberCount ?? 0} members</div>
                     </div>
                     <span className={`text-sm px-2 py-1 rounded-full font-bold ${expectedProfit >= 0 ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
                       {expectedProfit >= 0 ? "Profit " : "Loss "}{expectedProfit >= 0 ? "+" : "-"}{formatAED(Math.abs(expectedProfit))}
