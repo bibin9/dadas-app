@@ -384,8 +384,10 @@ function ReportsContent() {
                 <div key={pr.id} className="bg-white rounded-xl shadow-sm border p-4">
                   <div className="flex items-center justify-between mb-2">
                     <div>
-                      <div className="font-semibold text-gray-900">{pr.name}</div>
-                      <div className="text-xs text-gray-600">{pr.drawDate ? `🎰 Draw ${formatDate(pr.drawDate)} · ` : ""}{pr.memberCount ?? 0} members</div>
+                      <div className="font-bold text-gray-900">
+                        {pr.drawDate ? `🎰 Draw: ${formatDate(pr.drawDate)}` : pr.name}
+                      </div>
+                      <div className="text-xs text-gray-600">{pr.name}{pr.drawDate ? ` · ${pr.memberCount ?? 0} members` : ` · ${pr.memberCount ?? 0} members`}</div>
                     </div>
                     <span className={`text-sm px-2 py-1 rounded-full font-bold ${expectedProfit >= 0 ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
                       {expectedProfit >= 0 ? "Profit " : "Loss "}{expectedProfit >= 0 ? "+" : "-"}{formatAED(Math.abs(expectedProfit))}
