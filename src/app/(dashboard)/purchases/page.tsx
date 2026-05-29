@@ -348,49 +348,47 @@ export default function PurchasesPage() {
     const collected = cashTotal + bankTotal;
     const outstanding = unpaidSplits.reduce((s, x) => s + x.amount, 0);
 
-    const num = (n: number) => n.toFixed(2);
-    // Balance cell: positive = owes, negative = credit (shown "cr X"), 0 = "0"
+    const num = (n: number) => n.toFixed(0); // whole numbers keep columns narrow
+    // Balance cell: positive = owes, negative = credit (shown "crX"), 0 = "-"
     const balCell = (memberId: string): string => {
       const bal = members.find((x) => x.id === memberId)?.balance ?? 0;
-      if (bal > 0.01) return num(bal);            // owes
-      if (bal < -0.01) return `cr${num(Math.abs(bal))}`; // has credit
-      return "0";
+      if (bal > 0.01) return num(bal);                     // owes
+      if (bal < -0.01) return `cr${num(Math.abs(bal))}`;   // has credit
+      return "-";
     };
+    // Narrow name column so the table never wraps in WhatsApp on phones (~25 chars total)
     const allNames = p.splits.map((s) => s.member.name);
-    const nameWidth = Math.min(Math.max(...allNames.map((n) => n.length), 6), 12);
+    const nameWidth = Math.min(Math.max(...allNames.map((n) => n.length), 6), 11);
     const padName = (n: string) => {
       const t = n.length > nameWidth ? n.slice(0, nameWidth - 1) + "…" : n;
       return t.padEnd(nameWidth);
     };
-    const padAmt = (s: string, w = 9) => s.padStart(w);
+    const padCol = (s: string, w: number) => s.padStart(w);
 
     let msg = `🎫 *${p.description}*\n`;
     msg += `📅 ${formatDate(p.date)}\n`;
     msg += `💰 Total: ${formatAED(p.totalAmount)} · 👥 ${p.splits.length} members\n\n`;
 
-    // PAID table — member + amount + method + running balance
+    // PAID table — MEMBER | PAID | BAL (method breakdown is in Summary below)
     if (paidSplits.length > 0) {
       msg += `✅ *Paid (${paidSplits.length})*\n`;
       msg += "```\n";
-      msg += `${"MEMBER".padEnd(nameWidth)}${padAmt("PAID", 7)}${padAmt("BY", 7)}${padAmt("BAL", 8)}\n`;
-      msg += `${"─".repeat(nameWidth + 7 + 7 + 8)}\n`;
+      msg += `${"NAME".padEnd(nameWidth)}${padCol("PAID", 6)}${padCol("BAL", 7)}\n`;
+      msg += `${"─".repeat(nameWidth + 6 + 7)}\n`;
       for (const s of paidSplits) {
-        const pmt = paymentByMemberId[s.member.id];
-        const by = pmt?.method === "credit" ? "credit"
-          : pmt?.method === "bank_transfer" ? "bank" : "cash";
-        msg += `${padName(s.member.name)}${padAmt(num(s.amount), 7)}${padAmt(by, 7)}${padAmt(balCell(s.member.id), 8)}\n`;
+        msg += `${padName(s.member.name)}${padCol(num(s.amount), 6)}${padCol(balCell(s.member.id), 7)}\n`;
       }
       msg += "```\n\n";
     }
 
-    // UNPAID table — member + amount due + running balance
+    // UNPAID table — MEMBER | DUE | BAL
     if (unpaidSplits.length > 0) {
       msg += `❌ *Unpaid (${unpaidSplits.length})*\n`;
       msg += "```\n";
-      msg += `${"MEMBER".padEnd(nameWidth)}${padAmt("DUE", 7)}${padAmt("BAL", 8)}\n`;
-      msg += `${"─".repeat(nameWidth + 7 + 8)}\n`;
+      msg += `${"NAME".padEnd(nameWidth)}${padCol("DUE", 6)}${padCol("BAL", 7)}\n`;
+      msg += `${"─".repeat(nameWidth + 6 + 7)}\n`;
       for (const s of unpaidSplits) {
-        msg += `${padName(s.member.name)}${padAmt(num(s.amount), 7)}${padAmt(balCell(s.member.id), 8)}\n`;
+        msg += `${padName(s.member.name)}${padCol(num(s.amount), 6)}${padCol(balCell(s.member.id), 7)}\n`;
       }
       msg += "```\n\n";
     }
@@ -398,14 +396,14 @@ export default function PurchasesPage() {
     // Summary — same shape as football match Day Summary
     msg += `📊 *Summary*\n`;
     msg += "```\n";
-    msg += `Cash         ${padAmt(num(cashTotal), 10)}\n`;
-    msg += `Bank         ${padAmt(num(bankTotal), 10)}\n`;
-    msg += `${"─".repeat(22)}\n`;
-    msg += `Collected    ${padAmt(num(collected), 10)}\n`;
+    msg += `Cash         ${padCol(num(cashTotal), 8)}\n`;
+    msg += `Bank         ${padCol(num(bankTotal), 8)}\n`;
+    msg += `${"─".repeat(20)}\n`;
+    msg += `Collected    ${padCol(num(collected), 8)}\n`;
     if (creditApplied > 0.01) {
-      msg += `From Credit  ${padAmt(num(creditApplied), 10)}\n`;
+      msg += `From Credit  ${padCol(num(creditApplied), 8)}\n`;
     }
-    msg += `Outstanding  ${padAmt(num(outstanding), 10)}\n`;
+    msg += `Outstanding  ${padCol(num(outstanding), 8)}\n`;
     msg += "```";
 
     if (unpaidSplits.length > 0) {
