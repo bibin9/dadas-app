@@ -20,6 +20,7 @@ export default function HelpPage() {
 
       <nav className="bg-white border-b sticky top-[88px] z-10">
         <div className="max-w-3xl mx-auto px-4 py-2 flex flex-wrap gap-3 text-sm">
+          <a href="#videos" className="text-blue-700 hover:underline">🎬 Videos</a>
           <a href="#start" className="text-blue-700 hover:underline">Quick Start</a>
           <a href="#matches" className="text-blue-700 hover:underline">Matches</a>
           <a href="#bigticket" className="text-blue-700 hover:underline">Big Ticket</a>
@@ -35,6 +36,18 @@ export default function HelpPage() {
       </nav>
 
       <main className="max-w-3xl mx-auto px-4 py-8 space-y-10 text-gray-900">
+        {/* Video Walkthroughs */}
+        <section id="videos">
+          <H2>🎬 Video Walkthroughs</H2>
+          <p className="text-sm text-gray-700 mb-4">Short videos covering common workflows. Tap any thumbnail to play.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {VIDEOS.map((v) => (<VideoCard key={v.title} {...v} />))}
+          </div>
+          <p className="text-xs text-gray-500 mt-3 italic">
+            Videos missing? Email <a className="text-blue-700 underline" href="mailto:bibin9@gmail.com">bibin9@gmail.com</a> to request a recording — or contribute your own YouTube link.
+          </p>
+        </section>
+
         {/* Quick Start */}
         <section id="start">
           <H2>1. Quick Start</H2>
@@ -280,6 +293,104 @@ Outstanding     0`}</Code>
           Last updated: May 14, 2026 · <a href="/" className="text-blue-700 underline">Open app</a>
         </footer>
       </main>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Video walkthroughs — drop in YouTube video IDs as you record them.
+// To add a video:
+//   1. Upload to YouTube (Unlisted is fine — only people with the link can view)
+//   2. Copy the 11-character video ID from the URL
+//      e.g. https://youtu.be/dQw4w9WgXcQ → "dQw4w9WgXcQ"
+//   3. Paste into the `youtubeId` field below
+// Cards with no youtubeId show a "Recording soon" placeholder.
+// ────────────────────────────────────────────────────────────────────
+const VIDEOS: Video[] = [
+  {
+    title: "1. Quick Start — Login & Install on Phone",
+    description: "Log in, change password, install as a PWA on Android/iPhone.",
+    duration: "2 min",
+    youtubeId: "", // ← paste video ID when recorded
+  },
+  {
+    title: "2. Logging a Football Match",
+    description: "Quick Match form, marking players paid via cash/bank/credit, adding guests.",
+    duration: "3 min",
+    youtubeId: "",
+  },
+  {
+    title: "3. Collecting Payments Later",
+    description: "Per-row Mark Paid + bulk-select collection, undo paid mark.",
+    duration: "2 min",
+    youtubeId: "",
+  },
+  {
+    title: "4. Big Ticket Purchase & Collection",
+    description: "Create a monthly purchase with Draw Date + Ticket Cost, collect from 21 members fast.",
+    duration: "4 min",
+    youtubeId: "",
+  },
+  {
+    title: "5. Sharing Reports on WhatsApp",
+    description: "Share format for matches, purchases, and outstanding-balance reminders.",
+    duration: "2 min",
+    youtubeId: "",
+  },
+  {
+    title: "6. Monthly Close (End of Month)",
+    description: "Close the books — roll profit into income, reset counters, preserve credits.",
+    duration: "3 min",
+    youtubeId: "",
+  },
+  {
+    title: "7. Team Balancer for Match Day",
+    description: "Set up player skill pool, generate balanced teams, share team sheet.",
+    duration: "3 min",
+    youtubeId: "",
+  },
+  {
+    title: "8. Backups & Disaster Recovery",
+    description: "Manual snapshot URL, weekly auto-backup, what to do if something breaks.",
+    duration: "2 min",
+    youtubeId: "",
+  },
+];
+
+interface Video {
+  title: string;
+  description: string;
+  duration: string;
+  youtubeId: string;
+}
+
+function VideoCard({ title, description, duration, youtubeId }: Video) {
+  const hasVideo = youtubeId.trim().length > 0;
+  return (
+    <div className="bg-white rounded-xl border overflow-hidden shadow-sm">
+      {hasVideo ? (
+        <div className="relative aspect-video bg-black">
+          <iframe
+            src={`https://www.youtube.com/embed/${youtubeId}`}
+            title={title}
+            className="absolute inset-0 w-full h-full"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        </div>
+      ) : (
+        <div className="aspect-video bg-gradient-to-br from-gray-700 to-gray-900 flex flex-col items-center justify-center text-white">
+          <div className="text-3xl mb-1">🎬</div>
+          <div className="text-xs opacity-80 uppercase tracking-wide">Recording soon</div>
+        </div>
+      )}
+      <div className="p-3">
+        <div className="flex items-start justify-between gap-2">
+          <h3 className="font-semibold text-sm text-gray-900">{title}</h3>
+          <span className="text-xs text-gray-500 flex-shrink-0">{duration}</span>
+        </div>
+        <p className="text-xs text-gray-600 mt-1">{description}</p>
+      </div>
     </div>
   );
 }
