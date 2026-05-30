@@ -115,6 +115,10 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
               </Link>
             );
           })}
+          <Link href="/help" target="_blank" onClick={() => setMenuOpen(false)}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-blue-800/40">
+            <span>📘</span>User Manual
+          </Link>
           <button onClick={handleLogout} className="w-full text-left px-3 py-2.5 text-sm text-blue-200 hover:text-white hover:bg-blue-800/40 rounded-lg">
             Sign Out
           </button>
