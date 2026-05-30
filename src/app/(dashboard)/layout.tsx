@@ -144,7 +144,10 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
             );
           })}
         </nav>
-        <div className="p-4">
+        <div className="p-4 space-y-1">
+          <Link href="/help" target="_blank" className="block w-full text-left px-3 py-2 text-sm text-blue-200 hover:text-white hover:bg-blue-800/40 rounded-lg transition-colors">
+            📘 User Manual
+          </Link>
           <button onClick={handleLogout} className="w-full text-left px-3 py-2 text-sm text-blue-200 hover:text-white hover:bg-blue-800/40 rounded-lg transition-colors">
             Sign Out
           </button>

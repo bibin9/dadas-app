@@ -126,7 +126,16 @@
       "Bash(curl -s -b /tmp/c.txt \"https://dadas-app.vercel.app/api/dashboard?profile=bigticket\")",
       "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('Big Ticket members shown:', d['totals']['memberCount']\\); print\\('Credits:', d['totals'].get\\('totalCredits'\\)\\)\")",
       "Bash(TURSO_DATABASE_URL=\"libsql://dadas-app-bibin.aws-ap-south-1.turso.io\" TURSO_AUTH_TOKEN=\"eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3NzYwMjQwNjUsImlkIjoiMDE5ZDdjOGMtNzAwMS03Mjg5LTk3MzItMzEwOTJjMTQ3ZTBmIiwicmlkIjoiNmFjYjM4NDgtZWY0My00YzFhLThiODAtMTA2NWY0MWE5ZWU2In0.IZ-AsANLB71CDlve4qa6onFC_vGzq3pE_J4xxq_a7izT1Rt7lm08HDg\" node prisma/seed-turso.mjs)",
-      "Bash(cd \"C:\\\\Bibin\\\\dadas-app\" && npx vercel env pull /tmp/prod.txt --environment=production 2>&1 | tail -1 && grep -E \"GITHUB_BACKUP_REPO\" /tmp/prod.txt)"
+      "Bash(cd \"C:\\\\Bibin\\\\dadas-app\" && npx vercel env pull /tmp/prod.txt --environment=production 2>&1 | tail -1 && grep -E \"GITHUB_BACKUP_REPO\" /tmp/prod.txt)",
+      "Bash(curl -s -b /tmp/c.txt \"https://dadas-app.vercel.app/api/purchases/data\")",
+      "Bash(curl -s -b /tmp/c.txt \"https://dadas-app.vercel.app/api/payments/data?profile=bigticket&t=$\\(date +%s\\)\")",
+      "Bash(curl -s -b /tmp/c.txt \"https://dadas-app.vercel.app/api/dashboard?profile=bigticket&cb=$\\(date +%s\\)\" -H \"Cache-Control: no-cache\")",
+      "Bash(mkdir -p backups)",
+      "Bash(curl -s \"https://dadas-app.vercel.app/api/backup?token=dadas-backup-2026-secure&download=1\" -o \"backups/manual-2026-05-14.json\")",
+      "WebFetch(domain:www.linkedin.com)",
+      "Bash(gh api *)",
+      "WebFetch(domain:github.com)",
+      "Bash(curl -sw \"STATUS:%{http_code}\\\\n\" -o /dev/null \"https://dadas-app.vercel.app/help\")"
     ]
   }
 }

@@ -11,6 +11,7 @@ export async function middleware(request: NextRequest) {
   // Allow public routes and static files
   if (
     pathname === "/login" ||
+    pathname === "/help" || // public user manual — no login required
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/api/backup") || // protected by its own BACKUP_TOKEN/CRON_SECRET
     pathname === "/manifest.json" ||
