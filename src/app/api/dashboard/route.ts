@@ -57,8 +57,9 @@ async function handleDadas() {
   // Cutoff: only count activity AFTER this date in "current period" totals
   const sinceDate = lastClose?.closeDate ?? new Date(0);
 
-  // Current-period totals (post-close)
-  const [periodPayments, periodEvents, periodExpenses, periodIncomes, periodPurchases] = await Promise.all([
+  // Current-period totals (post-close) — DADAS football only.
+  // Big Ticket profit is intentionally kept separate from DADAS income.
+  const [periodPayments, periodEvents, periodExpenses, periodIncomes] = await Promise.all([
     prisma.payment.findMany({
       where: { category: "dadas", date: { gt: sinceDate } },
       select: { amount: true },
@@ -75,12 +76,6 @@ async function handleDadas() {
       where: { date: { gt: sinceDate } },
       select: { amount: true },
     }),
-    // Big Ticket purchase profit auto-flows into company income.
-    // Profit per purchase = (expected collection) - (ticket cost).
-    prisma.purchase.findMany({
-      where: { date: { gt: sinceDate } },
-      select: { totalAmount: true, cost: true },
-    }),
   ]);
 
   let periodReceived = 0;
@@ -89,15 +84,11 @@ async function handleDadas() {
   for (const e of periodEvents) periodEventCosts += e.totalCost;
   let periodEventExpenses = 0;
   for (const e of periodExpenses) periodEventExpenses += e.amount;
-  let companyIncome = 0;
-  for (const i of periodIncomes) companyIncome += i.amount;
-  let bigTicketProfit = 0;
-  for (const p of periodPurchases) bigTicketProfit += (p.totalAmount - (p.cost || 0));
-  const periodIncome = companyIncome + bigTicketProfit;
+  let periodIncome = 0;
+  for (const i of periodIncomes) periodIncome += i.amount;
   const periodCosts = periodEventCosts + periodEventExpenses;
 
-  // Total Income displayed = current period income (companyIncome + BT profit)
-  //                        + carry-forward from past monthly closes
+  // Total Income displayed = period income (DADAS only) + carry-forward
   const totalIncomeDisplay = periodIncome + carryForward;
 
   // Outstanding / credits remain lifetime (member balances)
@@ -127,8 +118,6 @@ async function handleDadas() {
       totalEventExpenses: periodEventExpenses,
       totalIncome: totalIncomeDisplay,
       periodIncome,
-      companyIncome,
-      bigTicketProfit,
       carryForward,
       totalOutstanding,
       totalCredits,
@@ -150,7 +139,7 @@ async function handleBigTicket() {
       orderBy: { name: "asc" },
       select: { id: true, name: true, phone: true },
     }),
-    prisma.purchase.findMany({ select: { totalAmount: true } }),
+    prisma.purchase.findMany({ select: { totalAmount: true, cost: true } }),
     prisma.memberGroupMember.findMany({ select: { memberId: true, groupId: true } }),
     prisma.purchaseSplit.findMany({ select: { memberId: true, amount: true } }),
     prisma.payment.findMany({ where: { category: "bigticket" }, select: { memberId: true, amount: true } }),
@@ -167,7 +156,13 @@ async function handleBigTicket() {
   }
 
   let totalPurchaseValue = 0;
-  for (const p of purchases) totalPurchaseValue += p.totalAmount;
+  let totalTicketCost = 0;
+  let totalEarnings = 0; // Big Ticket club earnings = expected collection - ticket cost
+  for (const p of purchases) {
+    totalPurchaseValue += p.totalAmount;
+    totalTicketCost += p.cost || 0;
+    totalEarnings += p.totalAmount - (p.cost || 0);
+  }
 
   // Lifetime per-member: due = sum of splits, paid = sum of bigticket payments
   const dueMap = new Map<string, number>();
@@ -206,6 +201,8 @@ async function handleBigTicket() {
       totalOutstanding,
       totalCollected,
       totalCredits,
+      totalTicketCost,
+      totalEarnings, // Big Ticket club earnings — separate from DADAS income
       memberCount: members.length,
       groupName: settings?.groupName || "Company",
     },

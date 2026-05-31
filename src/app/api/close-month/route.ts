@@ -60,7 +60,8 @@ async function computePreview() {
   const sinceDate = lastClose?.closeDate ?? new Date(0);
   const prevCredits = lastClose?.creditsAtClose ?? 0;
 
-  const [payments, eventCosts, eventExpenses, companyIncomes, purchases, members] = await Promise.all([
+  // DADAS football monthly close — Big Ticket profit kept separate.
+  const [payments, eventCosts, eventExpenses, companyIncomes, members] = await Promise.all([
     prisma.payment.findMany({
       where: { category: "dadas", date: { gt: sinceDate } },
       select: { amount: true },
@@ -76,11 +77,6 @@ async function computePreview() {
     prisma.companyIncome.findMany({
       where: { date: { gt: sinceDate } },
       select: { amount: true },
-    }),
-    // Big Ticket purchase profits in this period also count as company income
-    prisma.purchase.findMany({
-      where: { date: { gt: sinceDate } },
-      select: { totalAmount: true, cost: true },
     }),
     // Need lifetime totals to compute current credit balance
     prisma.member.findMany({
@@ -98,11 +94,8 @@ async function computePreview() {
   for (const e of eventCosts) groundCostsTotal += e.totalCost;
   let expensesTotal = 0;
   for (const e of eventExpenses) expensesTotal += e.amount;
-  let companyIncomeTotal = 0;
-  for (const i of companyIncomes) companyIncomeTotal += i.amount;
-  let bigTicketProfit = 0;
-  for (const p of purchases) bigTicketProfit += (p.totalAmount - (p.cost || 0));
-  const monthIncome = companyIncomeTotal + bigTicketProfit;
+  let monthIncome = 0;
+  for (const i of companyIncomes) monthIncome += i.amount;
 
   const monthCosts = groundCostsTotal + expensesTotal;
 
@@ -127,9 +120,7 @@ async function computePreview() {
     sinceDate,
     monthReceived,
     monthCosts,
-    monthIncome,        // company income + big ticket profit
-    companyIncomeTotal, // sponsorships/donations recorded directly
-    bigTicketProfit,    // auto-flowed from purchase P&L
+    monthIncome,        // DADAS company income (sponsorship etc) — NOT BT profit
     monthProfit,        // REAL profit (carry-forward)
     grossProfit,        // (received + income) - costs (info only)
     deltaCredits,       // net new player credit during this period

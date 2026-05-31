@@ -21,8 +21,6 @@ interface DadasTotals {
   totalEventExpenses: number;
   totalIncome: number;
   periodIncome: number;
-  companyIncome: number;
-  bigTicketProfit: number;
   carryForward: number;
   totalOutstanding: number;
   totalCredits: number;
@@ -39,6 +37,8 @@ interface BigTicketTotals {
   totalOutstanding: number;
   totalCollected: number;
   totalCredits: number;
+  totalTicketCost: number;
+  totalEarnings: number;
   memberCount: number;
   groupName: string;
 }
@@ -120,15 +120,7 @@ export default function DashboardPage() {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4 mb-6 md:mb-8">
           <Card label="Total Received" value={formatAED(totals.totalReceived)} color="emerald" onClick={() => router.push("/payments")} />
           <Card label="Total Costs" value={formatAED(totals.totalCosts)} color="red" subtitle={`Match: ${formatAED(totals.totalEventCosts)} + Exp: ${formatAED(totals.totalEventExpenses)}`} onClick={() => router.push("/expenses")} />
-          <Card label="Total Income" value={formatAED(totals.totalIncome)} color="purple" subtitle={
-            (() => {
-              const parts: string[] = [];
-              if ((totals.companyIncome ?? 0) > 0.01) parts.push(`Income ${formatAED(totals.companyIncome)}`);
-              if ((totals.bigTicketProfit ?? 0) > 0.01) parts.push(`BT ${formatAED(totals.bigTicketProfit)}`);
-              if (totals.carryForward > 0.01) parts.push(`Carried ${formatAED(totals.carryForward)}`);
-              return parts.length ? parts.join(" + ") : undefined;
-            })()
-          } onClick={() => router.push("/income")} />
+          <Card label="Total Income" value={formatAED(totals.totalIncome)} color="purple" subtitle={totals.carryForward > 0.01 ? `Carried: ${formatAED(totals.carryForward)} + ${formatAED(totals.periodIncome)} this period` : undefined} onClick={() => router.push("/income")} />
           <Card label="Outstanding" value={formatAED(totals.totalOutstanding)} color={totals.totalOutstanding > 0 ? "amber" : "emerald"} onClick={() => router.push("/reports?tab=outstanding")} />
           <Card
             label={`${totals.groupName} Fund`}
@@ -146,10 +138,17 @@ export default function DashboardPage() {
           />
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6 md:mb-8">
-          <Card label="Total Purchases" value={formatAED(totals.totalPurchases)} color="purple" onClick={() => router.push("/purchases")} />
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4 mb-6 md:mb-8">
+          <Card label="Total Purchases" value={formatAED(totals.totalPurchases)} color="purple" subtitle={totals.totalTicketCost > 0 ? `Tickets cost ${formatAED(totals.totalTicketCost)}` : undefined} onClick={() => router.push("/purchases")} />
           <Card label="Collected" value={formatAED(totals.totalCollected)} color="emerald" />
           <Card label="Outstanding" value={formatAED(totals.totalOutstanding)} color={totals.totalOutstanding > 0 ? "amber" : "emerald"} onClick={() => router.push("/reports?tab=outstanding")} />
+          <Card
+            label="BT Earnings"
+            value={formatAED(totals.totalEarnings)}
+            color={totals.totalEarnings >= 0 ? "emerald" : "red"}
+            subtitle={`Collection − Ticket cost`}
+            onClick={() => router.push("/reports")}
+          />
           <Card
             label="Members Credits"
             value={formatAED(totals.totalCredits)}

@@ -138,7 +138,10 @@
       "Bash(curl -sw \"STATUS:%{http_code}\\\\n\" -o /dev/null \"https://dadas-app.vercel.app/help\")",
       "Bash(curl -s \"https://dadas-app.vercel.app/api/backup?token=dadas-backup-2026-secure&download=1\" -o \"backups/manual-2026-05-14b-before-bt-income.json\")",
       "Bash(python -c \"import json; d=json.load\\(open\\('backups/manual-2026-05-14b-before-bt-income.json'\\)\\); print\\('Counts:', json.dumps\\(d['counts']\\)\\)\")",
-      "Bash(curl -s -b /tmp/c.txt \"https://dadas-app.vercel.app/api/dashboard?profile=dadas&cb=$\\(date +%s\\)\")"
+      "Bash(curl -s -b /tmp/c.txt \"https://dadas-app.vercel.app/api/dashboard?profile=dadas&cb=$\\(date +%s\\)\")",
+      "Bash(python -c \"import json,sys; t=json.load\\(sys.stdin\\)['totals']; print\\(f\\\\\"Total Income: {t['totalIncome']} \\(period {t['periodIncome']} + carry {t['carryForward']}\\)\\\\\"\\)\")",
+      "Bash(curl -s -b /tmp/c.txt \"https://dadas-app.vercel.app/api/dashboard?profile=bigticket&cb=$\\(date +%s\\)\")",
+      "Bash(python -c \"import json,sys; t=json.load\\(sys.stdin\\)['totals']; print\\(f\\\\\"Purchases: {t['totalPurchases']}, Ticket cost: {t.get\\('totalTicketCost'\\)}, BT Earnings: {t.get\\('totalEarnings'\\)}, Credits: {t['totalCredits']}\\\\\"\\)\")"
     ]
   }
 }
