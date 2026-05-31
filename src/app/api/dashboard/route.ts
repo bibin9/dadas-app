@@ -58,7 +58,7 @@ async function handleDadas() {
   const sinceDate = lastClose?.closeDate ?? new Date(0);
 
   // Current-period totals (post-close)
-  const [periodPayments, periodEvents, periodExpenses, periodIncomes] = await Promise.all([
+  const [periodPayments, periodEvents, periodExpenses, periodIncomes, periodPurchases] = await Promise.all([
     prisma.payment.findMany({
       where: { category: "dadas", date: { gt: sinceDate } },
       select: { amount: true },
@@ -75,6 +75,12 @@ async function handleDadas() {
       where: { date: { gt: sinceDate } },
       select: { amount: true },
     }),
+    // Big Ticket purchase profit auto-flows into company income.
+    // Profit per purchase = (expected collection) - (ticket cost).
+    prisma.purchase.findMany({
+      where: { date: { gt: sinceDate } },
+      select: { totalAmount: true, cost: true },
+    }),
   ]);
 
   let periodReceived = 0;
@@ -83,11 +89,15 @@ async function handleDadas() {
   for (const e of periodEvents) periodEventCosts += e.totalCost;
   let periodEventExpenses = 0;
   for (const e of periodExpenses) periodEventExpenses += e.amount;
-  let periodIncome = 0;
-  for (const i of periodIncomes) periodIncome += i.amount;
+  let companyIncome = 0;
+  for (const i of periodIncomes) companyIncome += i.amount;
+  let bigTicketProfit = 0;
+  for (const p of periodPurchases) bigTicketProfit += (p.totalAmount - (p.cost || 0));
+  const periodIncome = companyIncome + bigTicketProfit;
   const periodCosts = periodEventCosts + periodEventExpenses;
 
-  // Total Income displayed = current period income + carry-forward from closes
+  // Total Income displayed = current period income (companyIncome + BT profit)
+  //                        + carry-forward from past monthly closes
   const totalIncomeDisplay = periodIncome + carryForward;
 
   // Outstanding / credits remain lifetime (member balances)
@@ -117,6 +127,8 @@ async function handleDadas() {
       totalEventExpenses: periodEventExpenses,
       totalIncome: totalIncomeDisplay,
       periodIncome,
+      companyIncome,
+      bigTicketProfit,
       carryForward,
       totalOutstanding,
       totalCredits,

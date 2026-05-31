@@ -99,11 +99,27 @@ export default function IncomePage() {
           <h1 className="text-2xl font-bold text-gray-900">Company Income</h1>
           <p className="text-sm text-gray-700">Sponsorships, donations, prize money & other income</p>
         </div>
-        <button onClick={() => { if (showForm && !editingId) setShowForm(false); else { setShowForm(true); setEditingId(null); resetForm(); } }}
-          className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 font-medium text-sm">
-          {showForm && !editingId ? "Cancel" : "Record Income"}
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => {
+            setShowForm(true); setEditingId(null); resetForm();
+            setCategory("other");
+            setDescription("Opening Balance / Previous Income");
+            setDate("2026-01-01");
+            setNotes("Carried over from before the app started");
+          }} className="bg-gray-200 text-gray-800 px-3 py-2 rounded-lg hover:bg-gray-300 font-medium text-sm" title="Pre-fills the form for entering historical/prior income">
+            ⤴ Add Prior Income
+          </button>
+          <button onClick={() => { if (showForm && !editingId) setShowForm(false); else { setShowForm(true); setEditingId(null); resetForm(); } }}
+            className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 font-medium text-sm">
+            {showForm && !editingId ? "Cancel" : "Record Income"}
+          </button>
+        </div>
       </div>
+
+      <p className="text-xs text-gray-600 -mt-3 mb-4">
+        ℹ️ Big Ticket purchase profits automatically flow into Total Income on the dashboard.
+        You can also add historical income (set any past date) using <strong>⤴ Add Prior Income</strong>.
+      </p>
 
       {/* Total Summary */}
       <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 mb-6">

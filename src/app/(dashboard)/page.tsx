@@ -21,6 +21,8 @@ interface DadasTotals {
   totalEventExpenses: number;
   totalIncome: number;
   periodIncome: number;
+  companyIncome: number;
+  bigTicketProfit: number;
   carryForward: number;
   totalOutstanding: number;
   totalCredits: number;
@@ -118,7 +120,15 @@ export default function DashboardPage() {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4 mb-6 md:mb-8">
           <Card label="Total Received" value={formatAED(totals.totalReceived)} color="emerald" onClick={() => router.push("/payments")} />
           <Card label="Total Costs" value={formatAED(totals.totalCosts)} color="red" subtitle={`Match: ${formatAED(totals.totalEventCosts)} + Exp: ${formatAED(totals.totalEventExpenses)}`} onClick={() => router.push("/expenses")} />
-          <Card label="Total Income" value={formatAED(totals.totalIncome)} color="purple" subtitle={totals.carryForward > 0.01 ? `Carried: ${formatAED(totals.carryForward)} + ${formatAED(totals.periodIncome)} this period` : undefined} onClick={() => router.push("/income")} />
+          <Card label="Total Income" value={formatAED(totals.totalIncome)} color="purple" subtitle={
+            (() => {
+              const parts: string[] = [];
+              if ((totals.companyIncome ?? 0) > 0.01) parts.push(`Income ${formatAED(totals.companyIncome)}`);
+              if ((totals.bigTicketProfit ?? 0) > 0.01) parts.push(`BT ${formatAED(totals.bigTicketProfit)}`);
+              if (totals.carryForward > 0.01) parts.push(`Carried ${formatAED(totals.carryForward)}`);
+              return parts.length ? parts.join(" + ") : undefined;
+            })()
+          } onClick={() => router.push("/income")} />
           <Card label="Outstanding" value={formatAED(totals.totalOutstanding)} color={totals.totalOutstanding > 0 ? "amber" : "emerald"} onClick={() => router.push("/reports?tab=outstanding")} />
           <Card
             label={`${totals.groupName} Fund`}

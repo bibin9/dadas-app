@@ -135,7 +135,10 @@
       "WebFetch(domain:www.linkedin.com)",
       "Bash(gh api *)",
       "WebFetch(domain:github.com)",
-      "Bash(curl -sw \"STATUS:%{http_code}\\\\n\" -o /dev/null \"https://dadas-app.vercel.app/help\")"
+      "Bash(curl -sw \"STATUS:%{http_code}\\\\n\" -o /dev/null \"https://dadas-app.vercel.app/help\")",
+      "Bash(curl -s \"https://dadas-app.vercel.app/api/backup?token=dadas-backup-2026-secure&download=1\" -o \"backups/manual-2026-05-14b-before-bt-income.json\")",
+      "Bash(python -c \"import json; d=json.load\\(open\\('backups/manual-2026-05-14b-before-bt-income.json'\\)\\); print\\('Counts:', json.dumps\\(d['counts']\\)\\)\")",
+      "Bash(curl -s -b /tmp/c.txt \"https://dadas-app.vercel.app/api/dashboard?profile=dadas&cb=$\\(date +%s\\)\")"
     ]
   }
 }
