@@ -200,6 +200,17 @@ export default function PaymentsPage() {
                 className="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 font-medium text-sm">
                 Select
               </button>
+              <button
+                onClick={() => {
+                  setShowForm(true); setEditingId(null); resetForm();
+                  setDate("2026-01-01");
+                  setReference("Opening balance / Prior payment");
+                  setNotes("Carried over from before the app started");
+                }}
+                title="Pre-fills the form to enter a member's existing/prior payment (creates their opening credit)"
+                className="bg-gray-200 text-gray-800 px-3 py-2 rounded-lg hover:bg-gray-300 font-medium text-sm">
+                ⤴ Opening Balance
+              </button>
               <button onClick={() => { if (showForm && !editingId) { setShowForm(false); } else { setShowForm(true); setEditingId(null); resetForm(); } }}
                 className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 font-medium text-sm">
                 {showForm && !editingId ? "Cancel" : "Record Payment"}
@@ -208,6 +219,10 @@ export default function PaymentsPage() {
           )}
         </div>
       </div>
+
+      <p className="text-xs text-gray-600 mb-4 -mt-3">
+        ℹ️ Use <strong>⤴ Opening Balance</strong> to enter a member&apos;s prior/advance payment (creates their opening credit balance). Any payment with a backdated date works — there&apos;s no separate &quot;opening balance&quot; record type.
+      </p>
 
       {showForm && (
         <div className="bg-white rounded-xl shadow-sm border p-4 md:p-6 mb-6">
