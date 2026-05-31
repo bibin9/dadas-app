@@ -141,7 +141,12 @@
       "Bash(curl -s -b /tmp/c.txt \"https://dadas-app.vercel.app/api/dashboard?profile=dadas&cb=$\\(date +%s\\)\")",
       "Bash(python -c \"import json,sys; t=json.load\\(sys.stdin\\)['totals']; print\\(f\\\\\"Total Income: {t['totalIncome']} \\(period {t['periodIncome']} + carry {t['carryForward']}\\)\\\\\"\\)\")",
       "Bash(curl -s -b /tmp/c.txt \"https://dadas-app.vercel.app/api/dashboard?profile=bigticket&cb=$\\(date +%s\\)\")",
-      "Bash(python -c \"import json,sys; t=json.load\\(sys.stdin\\)['totals']; print\\(f\\\\\"Purchases: {t['totalPurchases']}, Ticket cost: {t.get\\('totalTicketCost'\\)}, BT Earnings: {t.get\\('totalEarnings'\\)}, Credits: {t['totalCredits']}\\\\\"\\)\")"
+      "Bash(python -c \"import json,sys; t=json.load\\(sys.stdin\\)['totals']; print\\(f\\\\\"Purchases: {t['totalPurchases']}, Ticket cost: {t.get\\('totalTicketCost'\\)}, BT Earnings: {t.get\\('totalEarnings'\\)}, Credits: {t['totalCredits']}\\\\\"\\)\")",
+      "Bash(curl -s \"https://dadas-app.vercel.app/api/backup?token=dadas-backup-2026-secure&download=1\" -o \"backups/manual-2026-05-14c-before-bt-income-page.json\")",
+      "Bash(python -c \"import json; d=json.load\\(open\\('backups/manual-2026-05-14c-before-bt-income-page.json'\\)\\); print\\('Snapshot ok. Counts:', json.dumps\\(d['counts']\\)\\)\")",
+      "Bash(curl -s -b /tmp/c.txt \"https://dadas-app.vercel.app/api/income/data?profile=bigticket\")",
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(f'Profile: {d[\\\\\"profile\\\\\"]}, Incomes: {len\\(d[\\\\\"incomes\\\\\"]\\)}'\\)\")",
+      "Bash(python -c \"import json,sys; t=json.load\\(sys.stdin\\)['totals']; print\\(f'BT Earnings: {t[\\\\\"totalEarnings\\\\\"]} \\(purchase profit {t[\\\\\"purchaseProfit\\\\\"]} + other income {t[\\\\\"otherIncome\\\\\"]}\\)'\\)\")"
     ]
   }
 }

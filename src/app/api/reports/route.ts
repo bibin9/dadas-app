@@ -37,7 +37,7 @@ async function handleDadas() {
         select: { id: true, name: true, phone: true, active: true, isGuest: true },
       }),
       prisma.settings.findUnique({ where: { id: "main" } }),
-      prisma.companyIncome.findMany({ orderBy: { date: "desc" } }),
+      prisma.companyIncome.findMany({ where: { profile: "dadas" }, orderBy: { date: "desc" } }),
       prisma.eventExpense.findMany({ orderBy: { date: "desc" } }),
       // Full dues+payments for FIFO settlement (need dates + eventIds)
       prisma.eventDue.findMany({

@@ -3,13 +3,14 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { description, amount, category, date, reference, notes, eventId } = await req.json();
+  const { description, amount, category, profile, date, reference, notes, eventId } = await req.json();
   const income = await prisma.companyIncome.update({
     where: { id },
     data: {
       description: description.trim(),
       amount: parseFloat(amount),
       category: category || "sponsorship",
+      ...(profile ? { profile: profile === "bigticket" ? "bigticket" : "dadas" } : {}),
       date: new Date(date),
       reference: reference || "",
       notes: notes || "",

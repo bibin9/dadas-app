@@ -154,6 +154,7 @@ model CompanyIncome {
   description String                        // e.g. "Tournament 2025 Sponsorship - XYZ Corp"
   amount      Float
   category    String   @default("sponsorship") // sponsorship, donation, prize, other
+  profile     String   @default("dadas")    // "dadas" or "bigticket" — scopes which dashboard counts it
   date        DateTime
   reference   String   @default("")          // receipt/ref number
   notes       String   @default("")
@@ -164,6 +165,7 @@ model CompanyIncome {
 
   @@index([eventId])
   @@index([date])
+  @@index([profile])
 }
 
 model EventTemplate {

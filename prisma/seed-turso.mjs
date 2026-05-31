@@ -187,6 +187,8 @@ const migrations = [
   `ALTER TABLE MonthlyClose ADD COLUMN creditsAtClose REAL NOT NULL DEFAULT 0`,
   `ALTER TABLE Purchase ADD COLUMN cost REAL NOT NULL DEFAULT 0`,
   `ALTER TABLE Purchase ADD COLUMN drawDate TEXT`,
+  `ALTER TABLE CompanyIncome ADD COLUMN profile TEXT NOT NULL DEFAULT 'dadas'`,
+  `CREATE INDEX IF NOT EXISTS idx_companyincome_profile ON CompanyIncome(profile)`,
 ];
 for (const sql of migrations) {
   try { await db.execute(sql); } catch { /* column already exists */ }

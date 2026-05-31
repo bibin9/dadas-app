@@ -75,7 +75,7 @@ async function computePreview() {
       select: { amount: true },
     }),
     prisma.companyIncome.findMany({
-      where: { date: { gt: sinceDate } },
+      where: { profile: "dadas", date: { gt: sinceDate } },
       select: { amount: true },
     }),
     // Need lifetime totals to compute current credit balance

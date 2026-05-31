@@ -10,7 +10,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const { description, amount, category, date, reference, notes, eventId } = await req.json();
+  const { description, amount, category, profile, date, reference, notes, eventId } = await req.json();
   if (!description?.trim() || !amount) {
     return NextResponse.json({ error: "Description and amount required" }, { status: 400 });
   }
@@ -19,6 +19,7 @@ export async function POST(req: NextRequest) {
       description: description.trim(),
       amount: parseFloat(amount),
       category: category || "sponsorship",
+      profile: profile === "bigticket" ? "bigticket" : "dadas",
       date: new Date(date),
       reference: reference || "",
       notes: notes || "",

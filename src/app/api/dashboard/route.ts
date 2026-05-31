@@ -73,7 +73,7 @@ async function handleDadas() {
       select: { amount: true },
     }),
     prisma.companyIncome.findMany({
-      where: { date: { gt: sinceDate } },
+      where: { profile: "dadas", date: { gt: sinceDate } },
       select: { amount: true },
     }),
   ]);
@@ -132,7 +132,7 @@ async function handleDadas() {
 }
 
 async function handleBigTicket() {
-  const [settings, allMembers, purchases, allGroupLinks, allSplits, allPayments] = await Promise.all([
+  const [settings, allMembers, purchases, allGroupLinks, allSplits, allPayments, btIncomes] = await Promise.all([
     prisma.settings.findUnique({ where: { id: "main" } }),
     prisma.member.findMany({
       where: { active: true },
@@ -143,6 +143,8 @@ async function handleBigTicket() {
     prisma.memberGroupMember.findMany({ select: { memberId: true, groupId: true } }),
     prisma.purchaseSplit.findMany({ select: { memberId: true, amount: true } }),
     prisma.payment.findMany({ where: { category: "bigticket" }, select: { memberId: true, amount: true } }),
+    // Big Ticket-scoped CompanyIncome (sponsorships, opening balance, etc.)
+    prisma.companyIncome.findMany({ where: { profile: "bigticket" }, select: { amount: true } }),
   ]);
 
   // Show ONLY Big Ticket group members (if a group is configured)
@@ -157,12 +159,17 @@ async function handleBigTicket() {
 
   let totalPurchaseValue = 0;
   let totalTicketCost = 0;
-  let totalEarnings = 0; // Big Ticket club earnings = expected collection - ticket cost
+  let purchaseProfit = 0;
   for (const p of purchases) {
     totalPurchaseValue += p.totalAmount;
     totalTicketCost += p.cost || 0;
-    totalEarnings += p.totalAmount - (p.cost || 0);
+    purchaseProfit += p.totalAmount - (p.cost || 0);
   }
+  // Other Big Ticket income (sponsorship, opening balance carried over, etc.)
+  let otherIncome = 0;
+  for (const i of btIncomes) otherIncome += i.amount;
+  // BT Earnings = purchase profit + other Big Ticket income
+  const totalEarnings = purchaseProfit + otherIncome;
 
   // Lifetime per-member: due = sum of splits, paid = sum of bigticket payments
   const dueMap = new Map<string, number>();
@@ -202,7 +209,9 @@ async function handleBigTicket() {
       totalCollected,
       totalCredits,
       totalTicketCost,
-      totalEarnings, // Big Ticket club earnings — separate from DADAS income
+      purchaseProfit,
+      otherIncome,
+      totalEarnings, // BT club earnings — separate from DADAS
       memberCount: members.length,
       groupName: settings?.groupName || "Company",
     },

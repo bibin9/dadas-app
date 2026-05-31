@@ -39,6 +39,8 @@ interface BigTicketTotals {
   totalCredits: number;
   totalTicketCost: number;
   totalEarnings: number;
+  purchaseProfit: number;
+  otherIncome: number;
   memberCount: number;
   groupName: string;
 }
@@ -146,8 +148,12 @@ export default function DashboardPage() {
             label="BT Earnings"
             value={formatAED(totals.totalEarnings)}
             color={totals.totalEarnings >= 0 ? "emerald" : "red"}
-            subtitle={`Collection − Ticket cost`}
-            onClick={() => router.push("/reports")}
+            subtitle={
+              (totals.otherIncome ?? 0) > 0.01
+                ? `Profit ${formatAED(totals.purchaseProfit ?? 0)} + Income ${formatAED(totals.otherIncome ?? 0)}`
+                : `Collection − Ticket cost`
+            }
+            onClick={() => router.push("/income")}
           />
           <Card
             label="Members Credits"

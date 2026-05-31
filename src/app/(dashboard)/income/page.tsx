@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { formatAED, formatDate } from "@/lib/format";
+import { useProfile } from "@/lib/profile-context";
 
 interface Event { id: string; name: string; date: string }
 interface Income {
@@ -18,6 +19,8 @@ const categories = [
 ];
 
 export default function IncomePage() {
+  const { profile } = useProfile();
+  const isBigTicket = profile === "bigticket";
   const [incomes, setIncomes] = useState<Income[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [showForm, setShowForm] = useState(false);
@@ -35,10 +38,10 @@ export default function IncomePage() {
 
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { loadAll(); }, []);
+  useEffect(() => { loadAll(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [profile]);
 
   async function loadAll() {
-    const data = await (await fetch("/api/income/data")).json();
+    const data = await (await fetch(`/api/income/data?profile=${profile}`)).json();
     setIncomes(data.incomes);
     setEvents(data.events);
     setLoading(false);
@@ -67,7 +70,7 @@ export default function IncomePage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault(); if (submitting) return; setSubmitting(true);
     try {
-      const payload = { description, amount: parseFloat(amount), category, date, reference, notes, eventId: eventId || null };
+      const payload = { description, amount: parseFloat(amount), category, profile, date, reference, notes, eventId: eventId || null };
       if (editingId) {
         await fetch(`/api/income/${editingId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       } else {
@@ -96,8 +99,14 @@ export default function IncomePage() {
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Company Income</h1>
-          <p className="text-sm text-gray-700">Sponsorships, donations, prize money & other income</p>
+          <h1 className="text-2xl font-bold text-gray-900">
+            {isBigTicket ? "Big Ticket Income" : "Company Income"}
+          </h1>
+          <p className="text-sm text-gray-700">
+            {isBigTicket
+              ? "Sponsorships, opening balance, bonus & other Big Ticket income — adds to BT Earnings on the dashboard"
+              : "Sponsorships, donations, prize money & other income"}
+          </p>
         </div>
         <div className="flex gap-2">
           <button onClick={() => {
@@ -117,8 +126,11 @@ export default function IncomePage() {
       </div>
 
       <p className="text-xs text-gray-600 -mt-3 mb-4">
-        ℹ️ Big Ticket purchase profits automatically flow into Total Income on the dashboard.
-        You can also add historical income (set any past date) using <strong>⤴ Add Prior Income</strong>.
+        {isBigTicket ? (
+          <>ℹ️ All entries here are <strong>Big Ticket-scoped</strong> and add to <strong>BT Earnings</strong> on the Big Ticket dashboard (alongside automatic purchase profit). Use <strong>⤴ Add Prior Income</strong> for opening balance / historical entries.</>
+        ) : (
+          <>ℹ️ All entries here are <strong>DADAS-scoped</strong> (football sponsorship, donations, prize money). Switch to the Big Ticket profile to add Big Ticket income there. Use <strong>⤴ Add Prior Income</strong> for opening balance / historical entries.</>
+        )}
       </p>
 
       {/* Total Summary */}

@@ -22,6 +22,7 @@ const bigticketNavItems = [
   { href: "/members", label: "Members", icon: "👥" },
   { href: "/purchases", label: "Purchases", icon: "🛒" },
   { href: "/payments", label: "Payments", icon: "💰" },
+  { href: "/income", label: "Income", icon: "🏆" },
   { href: "/reports", label: "Reports", icon: "📋" },
   { href: "/settings", label: "Settings", icon: "⚙️" },
 ];
