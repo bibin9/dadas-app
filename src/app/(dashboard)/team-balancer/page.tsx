@@ -316,10 +316,13 @@ export default function TeamBalancerPage() {
     }
   }
 
+  // Always alphabetical so the selection grid and pool tab list players
+  // by name regardless of API order
+  const sortedMembers = [...members].sort((a, b) => a.name.localeCompare(b.name));
   const filteredMembers =
     filterTier === "all"
-      ? members
-      : members.filter((m) => {
+      ? sortedMembers
+      : sortedMembers.filter((m) => {
           const s = skills[m.id];
           return (s?.skillTier ?? "silver") === filterTier;
         });
@@ -388,10 +391,10 @@ export default function TeamBalancerPage() {
             </button>
           </div>
 
-          {/* Player selection grid */}
+          {/* Player selection grid (alphabetical) */}
           <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mb-4">
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 max-h-[350px] overflow-y-auto">
-              {members.map((m) => {
+              {sortedMembers.map((m) => {
                 const s = skills[m.id];
                 const tier = s?.skillTier ?? "silver";
                 const isSelected = selectedIds.has(m.id);
