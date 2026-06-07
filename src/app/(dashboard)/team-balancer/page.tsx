@@ -19,6 +19,16 @@ interface PlayerSkill {
   member: Member;
 }
 
+interface AvoidPairRow {
+  id: string;
+  memberAId: string;
+  memberBId: string;
+  memberAName: string;
+  memberBName: string;
+  type: "same" | "opposing";
+  notes: string;
+}
+
 interface PlayerEntry {
   id: string;
   name: string;
@@ -36,6 +46,7 @@ interface TeamResult {
   scoreA: number;
   scoreB: number;
   difference: number;
+  avoidViolations?: number;
 }
 
 interface GuestPlayer {
@@ -133,6 +144,53 @@ export default function TeamBalancerPage() {
   // OPPOSITE team to swap them; click again to cancel.
   const [swapPick, setSwapPick] = useState<string | null>(null);
 
+  // Auto-pick captains randomly (one per team) when none are flagged in the pool
+  const [autoCaptain, setAutoCaptain] = useState(true);
+
+  // Avoid-pairs (Player Pool tab)
+  const [avoidPairs, setAvoidPairs] = useState<AvoidPairRow[]>([]);
+  const [avoidA, setAvoidA] = useState("");
+  const [avoidB, setAvoidB] = useState("");
+  const [avoidType, setAvoidType] = useState<"same" | "opposing">("same");
+  const [avoidSubmitting, setAvoidSubmitting] = useState(false);
+
+  async function loadAvoidPairs() {
+    const r = await fetch("/api/team-balancer/avoid-pairs");
+    if (r.ok) {
+      const d = await r.json();
+      setAvoidPairs(d.pairs || []);
+    }
+  }
+
+  async function addAvoidPair() {
+    if (!avoidA || !avoidB || avoidA === avoidB || avoidSubmitting) return;
+    setAvoidSubmitting(true);
+    try {
+      const res = await fetch("/api/team-balancer/avoid-pairs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberAId: avoidA, memberBId: avoidB, type: avoidType }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        alert(d.error || "Failed to add pair");
+        return;
+      }
+      setAvoidA(""); setAvoidB(""); setAvoidType("same");
+      await loadAvoidPairs();
+    } finally { setAvoidSubmitting(false); }
+  }
+
+  async function removeAvoidPair(id: string) {
+    if (!confirm("Remove this avoid-pair?")) return;
+    await fetch("/api/team-balancer/avoid-pairs", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    await loadAvoidPairs();
+  }
+
   // Swap a player from team A with one from team B (preserves team sizes).
   function swapPlayers(idA: string, idB: string) {
     if (!result) return;
@@ -171,6 +229,7 @@ export default function TeamBalancerPage() {
 
   useEffect(() => {
     loadData();
+    loadAvoidPairs();
   }, []);
 
   async function loadData() {
@@ -235,7 +294,7 @@ export default function TeamBalancerPage() {
   // ---- Generate Tab ----
   const totalPlayers = selectedIds.size + guests.length;
 
-  const doGenerate = useCallback(async (ids: Set<string>, guestList: GuestPlayer[]) => {
+  const doGenerate = useCallback(async (ids: Set<string>, guestList: GuestPlayer[], autoCaptainFlag: boolean) => {
     if (ids.size + guestList.length < 2) {
       setResult(null);
       return;
@@ -247,6 +306,7 @@ export default function TeamBalancerPage() {
       body: JSON.stringify({
         playerIds: Array.from(ids),
         guestPlayers: guestList,
+        autoCaptain: autoCaptainFlag,
       }),
     });
     const data = await res.json();
@@ -265,7 +325,7 @@ export default function TeamBalancerPage() {
       if (next.has(id)) next.delete(id);
       else next.add(id);
       // Auto-generate
-      doGenerate(next, guests);
+      doGenerate(next, guests, autoCaptain);
       return next;
     });
   }
@@ -274,7 +334,7 @@ export default function TeamBalancerPage() {
     const allSelected = selectedIds.size === members.length;
     const next = allSelected ? new Set<string>() : new Set(members.map((m) => m.id));
     setSelectedIds(next);
-    doGenerate(next, guests);
+    doGenerate(next, guests, autoCaptain);
   }
 
   function addGuest() {
@@ -286,17 +346,17 @@ export default function TeamBalancerPage() {
     setGuestAge("age30to40");
     setGuestPosition("any");
     // Auto-generate with new guest
-    doGenerate(selectedIds, newGuests);
+    doGenerate(selectedIds, newGuests, autoCaptain);
   }
 
   function removeGuest(i: number) {
     const newGuests = guests.filter((_, idx) => idx !== i);
     setGuests(newGuests);
-    doGenerate(selectedIds, newGuests);
+    doGenerate(selectedIds, newGuests, autoCaptain);
   }
 
   function shuffleTeams() {
-    doGenerate(selectedIds, guests);
+    doGenerate(selectedIds, guests, autoCaptain);
   }
 
   async function shareWhatsApp() {
@@ -399,6 +459,18 @@ export default function TeamBalancerPage() {
               {selectedIds.size === members.length ? "Deselect All" : "Select All"}
             </button>
           </div>
+
+          {/* Auto-pick captains toggle */}
+          <label className="flex items-center gap-2 text-sm text-gray-700 mb-3 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={autoCaptain}
+              onChange={(e) => { setAutoCaptain(e.target.checked); doGenerate(selectedIds, guests, e.target.checked); }}
+              className="rounded text-amber-600"
+            />
+            <span><strong>©</strong> Auto-pick 2 captains (random from top-tier, one per team)</span>
+            <span className="text-xs text-gray-500">— overridden if you flag exactly 2 captains in Player Pool</span>
+          </label>
 
           {/* Player selection grid (alphabetical) */}
           <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mb-4">
@@ -550,6 +622,11 @@ export default function TeamBalancerPage() {
                     ? "⚖️ Perfectly Balanced!"
                     : `⚖️ Difference: ${result.difference} pts`}
                 </span>
+                {(result.avoidViolations ?? 0) > 0 && (
+                  <span className="ml-2 inline-block px-3 py-1 rounded-full text-xs font-bold bg-orange-100 text-orange-800">
+                    ⚠️ {result.avoidViolations} avoid-pair violation{result.avoidViolations === 1 ? "" : "s"}
+                  </span>
+                )}
               </div>
 
               {/* Swap hint */}
@@ -655,7 +732,49 @@ export default function TeamBalancerPage() {
       {/* ========== POOL TAB ========== */}
       {tab === "pool" && (
         <div>
-          <p className="text-sm text-gray-500 mb-4">Set each player's skill level, age group and position. This is used to balance teams.</p>
+          <p className="text-sm text-gray-500 mb-4">Set each player&apos;s skill level, age group, position, captain flag, and availability. Used to balance teams.</p>
+
+          {/* Avoid Pairs section */}
+          <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mb-4">
+            <h3 className="text-sm font-bold text-gray-800 mb-2">🚫 Avoid Pairs <span className="font-normal text-gray-500 text-xs">— rivalries / clashes</span></h3>
+            <p className="text-xs text-gray-600 mb-3">
+              Tell the algorithm which members shouldn&apos;t end up on the same team (clash) or on opposing teams (rivalry).
+              These are soft constraints — the swap optimizer prioritizes fewer violations.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 mb-3">
+              <select value={avoidA} onChange={(e) => setAvoidA(e.target.value)} className="border rounded-lg px-2 py-1.5 text-sm bg-white">
+                <option value="">Member A...</option>
+                {sortedMembers.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+              </select>
+              <select value={avoidB} onChange={(e) => setAvoidB(e.target.value)} className="border rounded-lg px-2 py-1.5 text-sm bg-white">
+                <option value="">Member B...</option>
+                {sortedMembers.map((m) => <option key={m.id} value={m.id} disabled={m.id === avoidA}>{m.name}</option>)}
+              </select>
+              <select value={avoidType} onChange={(e) => setAvoidType(e.target.value as "same" | "opposing")} className="border rounded-lg px-2 py-1.5 text-sm bg-white">
+                <option value="same">❌ Same team (clash)</option>
+                <option value="opposing">⚔️ Opposing (rivalry)</option>
+              </select>
+              <button onClick={addAvoidPair} disabled={!avoidA || !avoidB || avoidA === avoidB || avoidSubmitting}
+                className="bg-blue-600 text-white rounded-lg px-3 py-1.5 text-sm font-semibold hover:bg-blue-700 disabled:opacity-50">
+                {avoidSubmitting ? "Adding..." : "+ Add pair"}
+              </button>
+            </div>
+            {avoidPairs.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {avoidPairs.map((p) => (
+                  <span key={p.id} className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${
+                    p.type === "same" ? "bg-red-50 text-red-800 border border-red-200" : "bg-purple-50 text-purple-800 border border-purple-200"
+                  }`}>
+                    {p.type === "same" ? "❌" : "⚔️"} <strong>{p.memberAName}</strong> &amp; <strong>{p.memberBName}</strong>
+                    <button onClick={() => removeAvoidPair(p.id)} className="ml-1 text-gray-500 hover:text-red-600 font-bold" title="Remove">×</button>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-500 italic">No pairs yet. Add some above to enforce team / opposing constraints.</p>
+            )}
+          </div>
+
           {/* Filter */}
           <div className="mb-4 flex items-center gap-2 flex-wrap">
             <span className="text-sm font-medium text-gray-600">Filter:</span>

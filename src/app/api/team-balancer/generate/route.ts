@@ -76,15 +76,17 @@ function calculateScore(
 }
 
 export async function POST(req: NextRequest) {
-  const { playerIds, guestPlayers } = await req.json();
+  const { playerIds, guestPlayers, autoCaptain } = await req.json();
 
-  const [members, recentSheets] = await Promise.all([
+  const [members, recentSheets, avoidPairs] = await Promise.all([
     prisma.member.findMany({
       where: { id: { in: playerIds as string[] } },
       include: { skill: true },
     }),
     // Last 5 TeamSheets — used to compute recent form (participation proxy)
     prisma.teamSheet.findMany({ orderBy: { date: "desc" }, take: 5, select: { teamAIds: true, teamBIds: true } }),
+    // Avoid-pair soft constraints
+    prisma.avoidPair.findMany({ select: { memberAId: true, memberBId: true, type: true } }),
   ]);
 
   // Build an appearances map (memberId -> count of times in last 5 sheets)
@@ -201,6 +203,38 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Auto-pick captains (random, prefer top-tier) when caller asked for it and
+  // there aren't exactly 2 flagged. Captains are picked from the playing pool
+  // with preference for higher skill tier so the team leaders are actually
+  // leaders. Sets isCaptain=true on the picked players for this generation
+  // only (does NOT persist to PlayerSkill).
+  const flaggedCount = players.filter((p) => p.isCaptain).length;
+  if (autoCaptain && flaggedCount !== 2 && players.length >= 2) {
+    // Clear any pre-flagged captains so we start fresh
+    for (const p of players) p.isCaptain = false;
+    // Score each candidate by skill weight; randomize ties to vary picks run-to-run
+    const TIER_RANK: Record<string, number> = { legend: 6, master: 5, gold: 4, silver: 3, bronze: 2, starter: 1 };
+    const candidates = players
+      .filter((p) => !p.isGuest)
+      .map((p) => ({ p, rank: TIER_RANK[p.skillTier] || 3, rnd: Math.random() }))
+      .sort((a, b) => b.rank - a.rank || a.rnd - b.rnd);
+    // Fall back to including guests only if no members are playing
+    const pool = candidates.length >= 2 ? candidates : players.map((p) => ({ p, rank: TIER_RANK[p.skillTier] || 3, rnd: Math.random() })).sort((a, b) => b.rank - a.rank || a.rnd - b.rnd);
+    if (pool.length >= 2) {
+      // Pick top half of pool (or top-tier players if many at top), random 2 from there
+      const topRank = pool[0].rank;
+      const topGroup = pool.filter((x) => x.rank === topRank);
+      const choose = topGroup.length >= 2 ? topGroup : pool.slice(0, Math.max(2, Math.ceil(pool.length / 3)));
+      // Shuffle 'choose' then take first 2
+      for (let i = choose.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [choose[i], choose[j]] = [choose[j], choose[i]];
+      }
+      choose[0].p.isCaptain = true;
+      choose[1].p.isCaptain = true;
+    }
+  }
+
   // Distribute captains FIRST — if exactly 2 captains are playing, assign one
   // to each team. If 1, 3+, or 0 captains, treat them as regular players.
   const captains = players.filter((p) => p.isCaptain);
@@ -221,45 +255,75 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // ── Avoid-pair violation counter ──
+  // Counts how many "avoid" constraints are currently violated.
+  // type="same"     → both members on the same team = 1 violation
+  // type="opposing" → members on opposing teams      = 1 violation
+  function countViolations(tA: PlayerEntry[], tB: PlayerEntry[]): number {
+    if (avoidPairs.length === 0) return 0;
+    const inA = new Set(tA.map((p) => p.id));
+    const inB = new Set(tB.map((p) => p.id));
+    let v = 0;
+    for (const pair of avoidPairs) {
+      const aOnA = inA.has(pair.memberAId);
+      const aOnB = inB.has(pair.memberAId);
+      const bOnA = inA.has(pair.memberBId);
+      const bOnB = inB.has(pair.memberBId);
+      // Skip if one of them isn't even playing
+      if (!(aOnA || aOnB) || !(bOnA || bOnB)) continue;
+      if (pair.type === "same" && ((aOnA && bOnA) || (aOnB && bOnB))) v++;
+      else if (pair.type === "opposing" && ((aOnA && bOnB) || (aOnB && bOnA))) v++;
+    }
+    return v;
+  }
+
   // ── Optimization pass ──
-  // The greedy assignment can leave a score gap. Try every same-position swap
-  // (A↔B) and keep the one that most reduces the gap. Repeat until no swap
-  // improves it. Hard caps: team size stays equal (always), position count
-  // never gets WORSE for either team. Result: gap typically ≤ 1-2 points.
+  // The greedy assignment can leave a score gap AND avoid-pair violations.
+  // Try every same-position swap (A↔B) and keep the one that BEST improves
+  // the result. Priority: reduce violations first, then reduce score gap.
+  // Hard caps: team size stays equal, captains stay where they are.
   function gap() { return Math.abs(scoreA - scoreB); }
   let iterations = 0;
-  const MAX_ITER = 200;
+  const MAX_ITER = 300;
   while (iterations < MAX_ITER) {
     iterations++;
-    let bestGain = 0;
     let bestPair: { a: PlayerEntry; b: PlayerEntry } | null = null;
+    let bestViolationDelta = 0;   // negative = fewer violations after swap
+    let bestGapDelta = 0;         // negative = smaller gap after swap
+    const currentViolations = countViolations(teamA, teamB);
     const currentGap = gap();
     for (const a of teamA) {
       for (const b of teamB) {
-        // Don't swap captains apart — each team must keep exactly its captain
         if (a.isCaptain || b.isCaptain) continue;
-        // Same position only (preserves position distribution)
         if (a.position !== b.position) continue;
-        // Hypothetical new scores after swap
+        // Hypothetical post-swap teams
+        const newA = teamA.map((p) => (p === a ? b : p));
+        const newB = teamB.map((p) => (p === b ? a : p));
+        const newViolations = countViolations(newA, newB);
         const newScoreA = scoreA - a.score + b.score;
         const newScoreB = scoreB - b.score + a.score;
         const newGap = Math.abs(newScoreA - newScoreB);
-        const gain = currentGap - newGap;
-        if (gain > bestGain + 0.0001) {
-          bestGain = gain;
+        const vDelta = newViolations - currentViolations;
+        const gDelta = newGap - currentGap;
+        // Priority: pick swaps that reduce violations OR
+        // (same violations AND reduce gap)
+        const better =
+          vDelta < bestViolationDelta - 0.0001 ||
+          (Math.abs(vDelta - bestViolationDelta) < 0.0001 && gDelta < bestGapDelta - 0.0001);
+        if (better && (vDelta < 0 || (vDelta === 0 && gDelta < 0))) {
+          bestViolationDelta = vDelta;
+          bestGapDelta = gDelta;
           bestPair = { a, b };
         }
       }
     }
     if (!bestPair) break;
-    // Apply best swap
     const iA = teamA.indexOf(bestPair.a);
     const iB = teamB.indexOf(bestPair.b);
     teamA[iA] = bestPair.b;
     teamB[iB] = bestPair.a;
     scoreA = scoreA - bestPair.a.score + bestPair.b.score;
     scoreB = scoreB - bestPair.b.score + bestPair.a.score;
-    // pos counts unchanged (same position swap)
   }
 
   return NextResponse.json({
@@ -269,5 +333,6 @@ export async function POST(req: NextRequest) {
     scoreB: Math.round(scoreB * 10) / 10,
     difference: Math.round(Math.abs(scoreA - scoreB) * 10) / 10,
     optimizationIterations: iterations,
+    avoidViolations: countViolations(teamA, teamB),
   });
 }

@@ -193,6 +193,22 @@ model PlayerSkill {
   member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
 }
 
+// Soft constraint for team balancer: "avoid pairing" between two members.
+//   type = "same"     → these two shouldn't end up on the same team (clash)
+//   type = "opposing" → these two shouldn't be on opposing teams (rivalry)
+// Stored without FK relations so we can lookup by id without backref on Member.
+model AvoidPair {
+  id        String   @id @default(cuid())
+  memberAId String
+  memberBId String
+  type      String   // "same" or "opposing"
+  notes     String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([memberAId])
+  @@index([memberBId])
+}
+
 model TeamSheet {
   id        String   @id @default(cuid())
   name      String

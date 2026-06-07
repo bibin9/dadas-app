@@ -137,6 +137,16 @@ const tables = [
     updatedAt TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (memberId) REFERENCES Member(id) ON DELETE CASCADE
   )`,
+  `CREATE TABLE IF NOT EXISTS AvoidPair (
+    id TEXT PRIMARY KEY,
+    memberAId TEXT NOT NULL,
+    memberBId TEXT NOT NULL,
+    type TEXT NOT NULL,
+    notes TEXT NOT NULL DEFAULT '',
+    createdAt TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_avoidpair_a ON AvoidPair(memberAId)`,
+  `CREATE INDEX IF NOT EXISTS idx_avoidpair_b ON AvoidPair(memberBId)`,
   `CREATE TABLE IF NOT EXISTS TeamSheet (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,

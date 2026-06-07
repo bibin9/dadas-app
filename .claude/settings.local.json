@@ -153,7 +153,9 @@
       "Bash(curl -s \"https://dadas-app.vercel.app/api/backup?token=dadas-backup-2026-secure&download=1\" -o \"backups/manual-2026-05-14e-before-team-balancer.json\")",
       "Bash(python -c \"import json; d=json.load\\(open\\('backups/manual-2026-05-14e-before-team-balancer.json'\\)\\); print\\('Snapshot ok. Counts:', json.dumps\\(d['counts']\\)\\)\")",
       "Bash(curl -s \"https://dadas-app.vercel.app/api/backup?token=dadas-backup-2026-secure&download=1\" -o \"backups/manual-2026-05-14f-before-captain-form-injury.json\")",
-      "Bash(python -c \"import json; d=json.load\\(open\\('backups/manual-2026-05-14f-before-captain-form-injury.json'\\)\\); print\\('Snapshot ok. Counts:', json.dumps\\(d['counts']\\)\\)\")"
+      "Bash(python -c \"import json; d=json.load\\(open\\('backups/manual-2026-05-14f-before-captain-form-injury.json'\\)\\); print\\('Snapshot ok. Counts:', json.dumps\\(d['counts']\\)\\)\")",
+      "Bash(curl -s \"https://dadas-app.vercel.app/api/backup?token=dadas-backup-2026-secure&download=1\" -o \"backups/manual-2026-05-14g-before-avoid-pairs.json\")",
+      "Bash(python -c \"import json; d=json.load\\(open\\('backups/manual-2026-05-14g-before-avoid-pairs.json'\\)\\); print\\('Snapshot ok. Counts:', json.dumps\\(d['counts']\\)\\)\")"
     ]
   }
 }
