@@ -461,16 +461,24 @@ export default function TeamBalancerPage() {
           </div>
 
           {/* Auto-pick captains toggle */}
-          <label className="flex items-center gap-2 text-sm text-gray-700 mb-3 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={autoCaptain}
-              onChange={(e) => { setAutoCaptain(e.target.checked); doGenerate(selectedIds, guests, e.target.checked); }}
-              className="rounded text-amber-600"
-            />
-            <span><strong>©</strong> Auto-pick 2 captains (random from top-tier, one per team)</span>
-            <span className="text-xs text-gray-500">— overridden if you flag exactly 2 captains in Player Pool</span>
-          </label>
+          {(() => {
+            const flaggedPlaying = sortedMembers.filter((m) => selectedIds.has(m.id) && skills[m.id]?.isCaptain).length;
+            return (
+              <label className="flex items-center gap-2 text-sm text-gray-700 mb-3 cursor-pointer select-none flex-wrap">
+                <input
+                  type="checkbox"
+                  checked={autoCaptain}
+                  onChange={(e) => { setAutoCaptain(e.target.checked); doGenerate(selectedIds, guests, e.target.checked); }}
+                  className="rounded text-amber-600"
+                />
+                <span><strong>©</strong> Auto-pick 2 captains randomly from those flagged in Player Pool</span>
+                <span className="text-xs text-gray-500">
+                  — {flaggedPlaying} flagged captain{flaggedPlaying === 1 ? "" : "s"} playing.
+                  {flaggedPlaying < 2 && " Mark 2+ in Player Pool to enable."}
+                </span>
+              </label>
+            );
+          })()}
 
           {/* Player selection grid (alphabetical) */}
           <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mb-4">

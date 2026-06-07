@@ -203,36 +203,29 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Auto-pick captains (random, prefer top-tier) when caller asked for it and
-  // there aren't exactly 2 flagged. Captains are picked from the playing pool
-  // with preference for higher skill tier so the team leaders are actually
-  // leaders. Sets isCaptain=true on the picked players for this generation
-  // only (does NOT persist to PlayerSkill).
-  const flaggedCount = players.filter((p) => p.isCaptain).length;
-  if (autoCaptain && flaggedCount !== 2 && players.length >= 2) {
-    // Clear any pre-flagged captains so we start fresh
-    for (const p of players) p.isCaptain = false;
-    // Score each candidate by skill weight; randomize ties to vary picks run-to-run
-    const TIER_RANK: Record<string, number> = { legend: 6, master: 5, gold: 4, silver: 3, bronze: 2, starter: 1 };
-    const candidates = players
-      .filter((p) => !p.isGuest)
-      .map((p) => ({ p, rank: TIER_RANK[p.skillTier] || 3, rnd: Math.random() }))
-      .sort((a, b) => b.rank - a.rank || a.rnd - b.rnd);
-    // Fall back to including guests only if no members are playing
-    const pool = candidates.length >= 2 ? candidates : players.map((p) => ({ p, rank: TIER_RANK[p.skillTier] || 3, rnd: Math.random() })).sort((a, b) => b.rank - a.rank || a.rnd - b.rnd);
-    if (pool.length >= 2) {
-      // Pick top half of pool (or top-tier players if many at top), random 2 from there
-      const topRank = pool[0].rank;
-      const topGroup = pool.filter((x) => x.rank === topRank);
-      const choose = topGroup.length >= 2 ? topGroup : pool.slice(0, Math.max(2, Math.ceil(pool.length / 3)));
-      // Shuffle 'choose' then take first 2
-      for (let i = choose.length - 1; i > 0; i--) {
+  // Auto-pick captains from the pool of flagged captains ONLY.
+  // Behaviour when autoCaptain is true:
+  //   - 0 or 1 flagged-captain playing → no captain assignment (fall through)
+  //   - exactly 2 flagged-captains playing → use both (one per team)
+  //   - 3+ flagged-captains playing → randomly pick 2 of them
+  // Note: any non-pool-flagged player is never auto-promoted to captain.
+  // Captain assignment is for THIS generation only (does NOT persist).
+  if (autoCaptain) {
+    const playingCaptains = players.filter((p) => p.isCaptain);
+    if (playingCaptains.length > 2) {
+      // Shuffle and keep only 2
+      const shuffled = [...playingCaptains];
+      for (let i = shuffled.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
-        [choose[i], choose[j]] = [choose[j], choose[i]];
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
       }
-      choose[0].p.isCaptain = true;
-      choose[1].p.isCaptain = true;
+      const keep = new Set([shuffled[0].id, shuffled[1].id]);
+      for (const p of players) {
+        if (p.isCaptain && !keep.has(p.id)) p.isCaptain = false;
+      }
     }
+    // If 0, 1, or already exactly 2: leave as-is. Distribution loop below
+    // handles "exactly 2" → split per team; otherwise treats them as regulars.
   }
 
   // Distribute captains FIRST — if exactly 2 captains are playing, assign one
