@@ -474,8 +474,48 @@ export default function EventsPage() {
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-2"><label className="block text-sm font-bold text-gray-900">Guest Players</label><button type="button" onClick={addGuest} className="text-sm text-blue-700 hover:underline font-medium">+ Add Guest</button></div>
-              {guestNames.length > 0 && (<div className="space-y-2">{guestNames.map((g, i) => (<div key={i} className="flex items-center gap-2"><input type="text" value={g} onChange={(e) => updateGuest(i, e.target.value)} placeholder="Guest name" className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-gray-900 font-medium text-sm" /><span className="text-sm font-medium text-gray-800 flex-shrink-0">{formatAED(parseFloat(matchFee || "0"))}</span><button type="button" onClick={() => removeGuest(i)} className="text-red-600 hover:text-red-800 text-sm font-medium flex-shrink-0">Remove</button></div>))}</div>)}
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-bold text-gray-900">Guest Players</label>
+                <button type="button" onClick={addGuest} className="text-sm text-blue-700 hover:underline font-medium">+ Add Guest</button>
+              </div>
+              {/* Datalist of all existing guest names — gives browser-native
+                  autocomplete in every guest input so the same name doesn't
+                  get added twice. The API also dedupes on save. */}
+              <datalist id="existing-guest-names">
+                {members.filter((m) => m.isGuest).map((g) => <option key={g.id} value={g.name} />)}
+              </datalist>
+              {guestNames.length > 0 && (
+                <div className="space-y-2">
+                  {guestNames.map((g, i) => {
+                    const trimmed = (g || "").trim().toLowerCase();
+                    const existing = trimmed
+                      ? members.find((m) => m.isGuest && m.name.trim().toLowerCase() === trimmed)
+                      : null;
+                    return (
+                      <div key={i} className="flex items-center gap-2 flex-wrap">
+                        <div className="flex-1 min-w-[160px]">
+                          <input
+                            type="text"
+                            value={g}
+                            onChange={(e) => updateGuest(i, e.target.value)}
+                            placeholder="Guest name (type to see existing guests)"
+                            list="existing-guest-names"
+                            autoComplete="off"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 font-medium text-sm"
+                          />
+                          {existing && (
+                            <p className="text-xs text-emerald-700 mt-0.5">
+                              ✓ Will reuse existing guest &quot;{existing.name}&quot; — no duplicate created
+                            </p>
+                          )}
+                        </div>
+                        <span className="text-sm font-medium text-gray-800 flex-shrink-0">{formatAED(parseFloat(matchFee || "0"))}</span>
+                        <button type="button" onClick={() => removeGuest(i)} className="text-red-600 hover:text-red-800 text-sm font-medium flex-shrink-0">Remove</button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
               {guestNames.length === 0 && <p className="text-sm text-gray-700">No guests. Click &quot;+ Add Guest&quot; for non-member players.</p>}
             </div>
 

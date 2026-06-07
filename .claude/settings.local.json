@@ -148,7 +148,8 @@
       "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(f'Profile: {d[\\\\\"profile\\\\\"]}, Incomes: {len\\(d[\\\\\"incomes\\\\\"]\\)}'\\)\")",
       "Bash(python -c \"import json,sys; t=json.load\\(sys.stdin\\)['totals']; print\\(f'BT Earnings: {t[\\\\\"totalEarnings\\\\\"]} \\(purchase profit {t[\\\\\"purchaseProfit\\\\\"]} + other income {t[\\\\\"otherIncome\\\\\"]}\\)'\\)\")",
       "Bash(curl -s \"https://dadas-app.vercel.app/api/backup?token=dadas-backup-2026-secure&download=1\" -o \"backups/manual-2026-05-14d-before-guest-dedup.json\")",
-      "Bash(python -c \"import json; d=json.load\\(open\\('backups/manual-2026-05-14d-before-guest-dedup.json'\\)\\); print\\('Snapshot saved. Counts:', json.dumps\\(d['counts']\\)\\); guests=[m for m in d['data']['members'] if m.get\\('isGuest'\\)]; print\\('Total guest records:', len\\(guests\\)\\); from collections import Counter; names=Counter\\(g['name'].strip\\(\\).lower\\(\\) for g in guests\\); dups={k:v for k,v in names.items\\(\\) if v>1}; print\\('Duplicate guest names:', len\\(dups\\)\\); [print\\(f'  {n}: {c} copies'\\) for n,c in dups.items\\(\\)]\")"
+      "Bash(python -c \"import json; d=json.load\\(open\\('backups/manual-2026-05-14d-before-guest-dedup.json'\\)\\); print\\('Snapshot saved. Counts:', json.dumps\\(d['counts']\\)\\); guests=[m for m in d['data']['members'] if m.get\\('isGuest'\\)]; print\\('Total guest records:', len\\(guests\\)\\); from collections import Counter; names=Counter\\(g['name'].strip\\(\\).lower\\(\\) for g in guests\\); dups={k:v for k,v in names.items\\(\\) if v>1}; print\\('Duplicate guest names:', len\\(dups\\)\\); [print\\(f'  {n}: {c} copies'\\) for n,c in dups.items\\(\\)]\")",
+      "Bash(curl -sw \"STATUS:%{http_code}\\\\n\" \"https://dadas-app.vercel.app/api/backup?token=dadas-backup-2026-secure&download=1\" -o \"C:/Users/Internet/AppData/Local/Temp/post-dedupe.json\")"
     ]
   }
 }
