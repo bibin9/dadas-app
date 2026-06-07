@@ -16,14 +16,30 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const { name, date, perHeadFee, totalCost, notes, memberIds, guestNames, payments } = await req.json();
 
   // Create guest members if any
+  // Dedupe-on-add: reuse existing guest with the same name (case-insensitive)
+  // instead of creating a new duplicate record.
   const guestIds: string[] = [];
   if (guestNames && guestNames.length > 0) {
+    const existingGuests = await prisma.member.findMany({
+      where: { isGuest: true },
+      select: { id: true, name: true },
+    });
+    const guestByLowerName = new Map<string, string>();
+    for (const g of existingGuests) guestByLowerName.set(g.name.trim().toLowerCase(), g.id);
+
     for (const guestName of guestNames as string[]) {
-      if (!guestName.trim()) continue;
-      const guest = await prisma.member.create({
-        data: { name: guestName.trim(), isGuest: true, active: false },
-      });
-      guestIds.push(guest.id);
+      const trimmed = (guestName || "").trim();
+      if (!trimmed) continue;
+      const existingId = guestByLowerName.get(trimmed.toLowerCase());
+      if (existingId) {
+        guestIds.push(existingId);
+      } else {
+        const guest = await prisma.member.create({
+          data: { name: trimmed, isGuest: true, active: false },
+        });
+        guestIds.push(guest.id);
+        guestByLowerName.set(trimmed.toLowerCase(), guest.id);
+      }
     }
   }
 

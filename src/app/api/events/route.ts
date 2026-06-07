@@ -28,15 +28,33 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // guestNames: string[] — create temporary guest members
+  // guestNames: string[] — reuse existing guest with the same name (case-
+  // insensitive) if one already exists; create a new one only when there's
+  // no match. Prevents the duplicate-guest problem.
   const guestIds: string[] = [];
   if (guestNames && guestNames.length > 0) {
+    // Pre-load all existing guests once so we don't query per name
+    const existingGuests = await prisma.member.findMany({
+      where: { isGuest: true },
+      select: { id: true, name: true },
+    });
+    const guestByLowerName = new Map<string, string>();
+    for (const g of existingGuests) guestByLowerName.set(g.name.trim().toLowerCase(), g.id);
+
     for (const guestName of guestNames as string[]) {
-      if (!guestName.trim()) continue;
-      const guest = await prisma.member.create({
-        data: { name: guestName.trim(), isGuest: true, active: false },
-      });
-      guestIds.push(guest.id);
+      const trimmed = (guestName || "").trim();
+      if (!trimmed) continue;
+      const existingId = guestByLowerName.get(trimmed.toLowerCase());
+      if (existingId) {
+        guestIds.push(existingId);
+      } else {
+        const guest = await prisma.member.create({
+          data: { name: trimmed, isGuest: true, active: false },
+        });
+        guestIds.push(guest.id);
+        // Keep map updated in case the same new name appears twice in this request
+        guestByLowerName.set(trimmed.toLowerCase(), guest.id);
+      }
     }
   }
 

@@ -174,6 +174,34 @@ export default function MembersPage() {
     loadMembers();
   }
 
+  async function handleDedupeGuests() {
+    // First fetch a dry-run preview
+    const preview = await (await fetch("/api/members/dedupe-guests")).json();
+    if (!preview.duplicateGroups) {
+      alert("✓ No duplicate guests found.");
+      return;
+    }
+    const lines = preview.groups.map((g: { name: string; removeCount: number }) =>
+      `  • ${g.name} — ${g.removeCount + 1} copies → keep 1, merge ${g.removeCount}`
+    ).join("\n");
+    if (!confirm(
+      `Merge duplicate guests?\n\n` +
+      `${preview.duplicateGroups} name(s) have duplicates:\n${lines}\n\n` +
+      `For each name: the OLDEST guest is kept, all their dues/payments are re-pointed to that one, ` +
+      `then the duplicates are deleted.\n\n` +
+      `Total guest records to delete: ${preview.totalToDelete}\n\nContinue?`
+    )) return;
+    const res = await fetch("/api/members/dedupe-guests", { method: "POST" });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(`Dedupe failed: ${data.error || res.statusText}`);
+      return;
+    }
+    const data = await res.json();
+    alert(`✓ Merged ${data.merged} group(s), deleted ${data.deleted} duplicate guest record(s).`);
+    loadMembers();
+  }
+
   if (loading) return <div className="text-gray-700 font-medium p-4">Loading...</div>;
 
   return (
@@ -181,10 +209,17 @@ export default function MembersPage() {
       <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
         <h1 className="text-2xl font-bold text-gray-900">Members</h1>
         {guestMembers.length > 0 && (
-          <button onClick={handleCleanupGuests}
-            className="bg-orange-100 text-orange-800 border border-orange-300 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-orange-200">
-            🧹 Cleanup {guestMembers.length} guest{guestMembers.length !== 1 ? "s" : ""}
-          </button>
+          <div className="flex gap-2 flex-wrap">
+            <button onClick={handleDedupeGuests}
+              className="bg-blue-100 text-blue-800 border border-blue-300 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-blue-200"
+              title="Merge guests with the same name into a single record">
+              🔗 Merge Duplicate Guests
+            </button>
+            <button onClick={handleCleanupGuests}
+              className="bg-orange-100 text-orange-800 border border-orange-300 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-orange-200">
+              🧹 Cleanup {guestMembers.length} guest{guestMembers.length !== 1 ? "s" : ""}
+            </button>
+          </div>
         )}
       </div>
 
