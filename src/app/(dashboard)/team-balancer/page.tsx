@@ -126,6 +126,45 @@ export default function TeamBalancerPage() {
   const [result, setResult] = useState<TeamResult | null>(null);
   const [jerseyA, setJerseyA] = useState(0);
   const [jerseyB, setJerseyB] = useState(2);
+  // Player picked for swap. Format "A:id" or "B:id". Click another from the
+  // OPPOSITE team to swap them; click again to cancel.
+  const [swapPick, setSwapPick] = useState<string | null>(null);
+
+  // Swap a player from team A with one from team B (preserves team sizes).
+  function swapPlayers(idA: string, idB: string) {
+    if (!result) return;
+    const a = result.teamA.find((p) => p.id === idA);
+    const b = result.teamB.find((p) => p.id === idB);
+    if (!a || !b) return;
+    const newA = result.teamA.map((p) => (p.id === idA ? b : p));
+    const newB = result.teamB.map((p) => (p.id === idB ? a : p));
+    const scoreA = newA.reduce((s, p) => s + p.score, 0);
+    const scoreB = newB.reduce((s, p) => s + p.score, 0);
+    setResult({
+      teamA: newA,
+      teamB: newB,
+      scoreA: Math.round(scoreA * 10) / 10,
+      scoreB: Math.round(scoreB * 10) / 10,
+      difference: Math.round(Math.abs(scoreA - scoreB) * 10) / 10,
+    });
+    setSwapPick(null);
+  }
+
+  // Click a player chip; if one from the opposite team is already picked, swap.
+  function pickForSwap(side: "A" | "B", id: string) {
+    const key = `${side}:${id}`;
+    if (swapPick === key) {
+      setSwapPick(null); // toggle off
+      return;
+    }
+    if (swapPick && swapPick.startsWith(side === "A" ? "B:" : "A:")) {
+      const otherId = swapPick.slice(2);
+      if (side === "A") swapPlayers(id, otherId);
+      else swapPlayers(otherId, id);
+      return;
+    }
+    setSwapPick(key);
+  }
 
   useEffect(() => {
     loadData();
@@ -209,6 +248,7 @@ export default function TeamBalancerPage() {
     const [a, b] = getRandomJerseyPair();
     setJerseyA(a);
     setJerseyB(b);
+    setSwapPick(null); // clear any swap selection on new generation
     setGenerating(false);
   }, []);
 
@@ -258,8 +298,11 @@ export default function TeamBalancerPage() {
     const colorB = JERSEY_COLORS[jerseyB];
     const now = new Date();
     const dateStr = now.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+    // Sort alphabetically so members can't tell who they're paired-against by position
+    const aSorted = [...result.teamA].sort((p, q) => p.name.localeCompare(q.name));
+    const bSorted = [...result.teamB].sort((p, q) => p.name.localeCompare(q.name));
 
-    const text = `⚽ *DADAS FC - Team Sheet*\n📅 ${dateStr}\n\n${colorA.emoji} *${colorA.name} Jersey*\n${result.teamA.map((p, i) => `${i + 1}. ${p.name}${p.isGuest ? " (Guest)" : ""}`).join("\n")}\n\n${colorB.emoji} *${colorB.name} Jersey*\n${result.teamB.map((p, i) => `${i + 1}. ${p.name}${p.isGuest ? " (Guest)" : ""}`).join("\n")}\n\n👥 ${result.teamA.length} vs ${result.teamB.length} players`;
+    const text = `⚽ *DADAS FC - Team Sheet*\n📅 ${dateStr}\n\n${colorA.emoji} *${colorA.name} Jersey*\n${aSorted.map((p, i) => `${i + 1}. ${p.name}${p.isGuest ? " (Guest)" : ""}`).join("\n")}\n\n${colorB.emoji} *${colorB.name} Jersey*\n${bSorted.map((p, i) => `${i + 1}. ${p.name}${p.isGuest ? " (Guest)" : ""}`).join("\n")}\n\n👥 ${result.teamA.length} vs ${result.teamB.length} players`;
 
     if (navigator.share) {
       try {
@@ -472,12 +515,14 @@ export default function TeamBalancerPage() {
           {!generating && result && (
             <div>
               {/* Score difference */}
-              <div className="text-center mb-4">
+              <div className="text-center mb-3">
                 <span
                   className={`inline-block px-4 py-2 rounded-full text-sm font-bold ${
                     result.difference === 0
                       ? "bg-green-100 text-green-800"
                       : result.difference <= 1
+                      ? "bg-green-100 text-green-800"
+                      : result.difference <= 2
                       ? "bg-yellow-100 text-yellow-800"
                       : "bg-red-100 text-red-800"
                   }`}
@@ -488,76 +533,83 @@ export default function TeamBalancerPage() {
                 </span>
               </div>
 
-              {/* Teams side by side with jersey colors */}
+              {/* Swap hint */}
+              <p className="text-xs text-center text-gray-600 mb-3">
+                {swapPick
+                  ? "Now tap a player on the OTHER team to swap. Tap again to cancel."
+                  : "💡 Tap any player to swap them with a player from the other team."}
+              </p>
+
+              {/* Jersey color pickers — manual override */}
+              <div className="flex items-center justify-center gap-3 mb-3 text-xs flex-wrap">
+                <label className="flex items-center gap-1.5">
+                  <span className="font-semibold text-gray-700">Team 1 jersey:</span>
+                  <select value={jerseyA} onChange={(e) => setJerseyA(parseInt(e.target.value))}
+                    className="border border-gray-300 rounded-lg px-2 py-1 bg-white text-gray-800">
+                    {JERSEY_COLORS.map((c, i) => (
+                      <option key={c.name} value={i} disabled={i === jerseyB}>{c.emoji} {c.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex items-center gap-1.5">
+                  <span className="font-semibold text-gray-700">Team 2 jersey:</span>
+                  <select value={jerseyB} onChange={(e) => setJerseyB(parseInt(e.target.value))}
+                    className="border border-gray-300 rounded-lg px-2 py-1 bg-white text-gray-800">
+                    {JERSEY_COLORS.map((c, i) => (
+                      <option key={c.name} value={i} disabled={i === jerseyA}>{c.emoji} {c.name}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              {/* Teams side by side — alphabetically sorted, click-to-swap */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                {/* Team A */}
-                {(() => {
-                  const jersey = JERSEY_COLORS[jerseyA];
+                {(["A", "B"] as const).map((side) => {
+                  const jersey = JERSEY_COLORS[side === "A" ? jerseyA : jerseyB];
+                  const team = side === "A" ? result.teamA : result.teamB;
+                  const score = side === "A" ? result.scoreA : result.scoreB;
+                  // Alphabetical sort — members can't tell who they're paired-against
+                  const sorted = [...team].sort((p, q) => p.name.localeCompare(q.name));
                   return (
-                    <div className={`${jersey.bg} rounded-xl shadow-sm border-2 ${jersey.border} overflow-hidden`}>
+                    <div key={side} className={`${jersey.bg} rounded-xl shadow-sm border-2 ${jersey.border} overflow-hidden`}>
                       <div className={`${jersey.headerBg} ${jersey.headerText} px-4 py-3 font-bold text-center text-lg`}>
                         {jersey.emoji} {jersey.name} Jersey
                       </div>
                       <div className="p-3 space-y-1.5">
-                        {result.teamA.map((p, i) => (
-                          <div
-                            key={p.id}
-                            className={`flex items-center gap-2 py-1.5 px-2 rounded-lg ${
-                              jersey.name === "Black" ? "border-b border-gray-700 last:border-0" : "border-b border-gray-100 last:border-0"
-                            }`}
-                          >
-                            <span className={`text-xs w-5 font-bold ${jersey.name === "Black" ? "text-gray-400" : "text-gray-400"}`}>{i + 1}</span>
-                            <span className={`font-medium flex-1 truncate text-sm ${jersey.text}`}>
-                              {p.name}
-                              {p.isGuest && <span className="text-xs opacity-60 ml-1">(G)</span>}
-                            </span>
-                            {getSkillBadge(p.skillTier)}
-                          </div>
-                        ))}
+                        {sorted.map((p, i) => {
+                          const picked = swapPick === `${side}:${p.id}`;
+                          // Can swap with this player when the other team has someone picked
+                          const otherSidePicked = swapPick && swapPick.startsWith(side === "A" ? "B:" : "A:");
+                          return (
+                            <button
+                              type="button"
+                              key={p.id}
+                              onClick={() => pickForSwap(side, p.id)}
+                              className={`w-full flex items-center gap-2 py-1.5 px-2 rounded-lg text-left transition-all ${
+                                picked
+                                  ? "ring-2 ring-blue-500 bg-blue-50/40"
+                                  : otherSidePicked
+                                  ? "hover:ring-2 hover:ring-emerald-400 hover:bg-emerald-50/30 cursor-pointer"
+                                  : "hover:bg-black/5 cursor-pointer"
+                              } ${jersey.name === "Black" ? "border-b border-gray-700 last:border-0" : "border-b border-gray-100 last:border-0"}`}
+                            >
+                              <span className={`text-xs w-5 font-bold ${jersey.name === "Black" ? "text-gray-400" : "text-gray-400"}`}>{i + 1}</span>
+                              <span className={`font-medium flex-1 truncate text-sm ${jersey.text}`}>
+                                {p.name}
+                                {p.isGuest && <span className="text-xs opacity-60 ml-1">(G)</span>}
+                              </span>
+                              {picked && <span className="text-xs text-blue-700 font-bold">↔ pick partner</span>}
+                              {getSkillBadge(p.skillTier)}
+                            </button>
+                          );
+                        })}
                       </div>
                       <div className={`${jersey.footerBg} px-4 py-2 text-center font-bold ${jersey.footerText} text-sm`}>
-                        {result.scoreA} pts • {result.teamA.length} players
+                        {score} pts • {team.length} players
                       </div>
                     </div>
                   );
-                })()}
-
-                {/* VS divider - mobile only */}
-                <div className="md:hidden flex items-center justify-center -my-2">
-                  <span className="bg-[#1a2744] text-white w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-lg">VS</span>
-                </div>
-
-                {/* Team B */}
-                {(() => {
-                  const jersey = JERSEY_COLORS[jerseyB];
-                  return (
-                    <div className={`${jersey.bg} rounded-xl shadow-sm border-2 ${jersey.border} overflow-hidden`}>
-                      <div className={`${jersey.headerBg} ${jersey.headerText} px-4 py-3 font-bold text-center text-lg`}>
-                        {jersey.emoji} {jersey.name} Jersey
-                      </div>
-                      <div className="p-3 space-y-1.5">
-                        {result.teamB.map((p, i) => (
-                          <div
-                            key={p.id}
-                            className={`flex items-center gap-2 py-1.5 px-2 rounded-lg ${
-                              jersey.name === "Black" ? "border-b border-gray-700 last:border-0" : "border-b border-gray-100 last:border-0"
-                            }`}
-                          >
-                            <span className={`text-xs w-5 font-bold ${jersey.name === "Black" ? "text-gray-400" : "text-gray-400"}`}>{i + 1}</span>
-                            <span className={`font-medium flex-1 truncate text-sm ${jersey.text}`}>
-                              {p.name}
-                              {p.isGuest && <span className="text-xs opacity-60 ml-1">(G)</span>}
-                            </span>
-                            {getSkillBadge(p.skillTier)}
-                          </div>
-                        ))}
-                      </div>
-                      <div className={`${jersey.footerBg} px-4 py-2 text-center font-bold ${jersey.footerText} text-sm`}>
-                        {result.scoreB} pts • {result.teamB.length} players
-                      </div>
-                    </div>
-                  );
-                })()}
+                })}
               </div>
 
               {/* Action buttons */}

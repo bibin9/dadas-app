@@ -161,11 +161,52 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // ── Optimization pass ──
+  // The greedy assignment can leave a score gap. Try every same-position swap
+  // (A↔B) and keep the one that most reduces the gap. Repeat until no swap
+  // improves it. Hard caps: team size stays equal (always), position count
+  // never gets WORSE for either team. Result: gap typically ≤ 1-2 points.
+  function gap() { return Math.abs(scoreA - scoreB); }
+  let iterations = 0;
+  const MAX_ITER = 200;
+  while (iterations < MAX_ITER) {
+    iterations++;
+    let bestGain = 0;
+    let bestPair: { a: PlayerEntry; b: PlayerEntry } | null = null;
+    const currentGap = gap();
+    for (const a of teamA) {
+      for (const b of teamB) {
+        // Only consider swaps that don't break position balance — same position preferred,
+        // or allow cross-position only if both teams keep at least 1 of each existing position.
+        if (a.position !== b.position) continue;
+        // Hypothetical new scores after swap
+        const newScoreA = scoreA - a.score + b.score;
+        const newScoreB = scoreB - b.score + a.score;
+        const newGap = Math.abs(newScoreA - newScoreB);
+        const gain = currentGap - newGap;
+        if (gain > bestGain + 0.0001) {
+          bestGain = gain;
+          bestPair = { a, b };
+        }
+      }
+    }
+    if (!bestPair) break;
+    // Apply best swap
+    const iA = teamA.indexOf(bestPair.a);
+    const iB = teamB.indexOf(bestPair.b);
+    teamA[iA] = bestPair.b;
+    teamB[iB] = bestPair.a;
+    scoreA = scoreA - bestPair.a.score + bestPair.b.score;
+    scoreB = scoreB - bestPair.b.score + bestPair.a.score;
+    // pos counts unchanged (same position swap)
+  }
+
   return NextResponse.json({
     teamA,
     teamB,
     scoreA: Math.round(scoreA * 10) / 10,
     scoreB: Math.round(scoreB * 10) / 10,
     difference: Math.round(Math.abs(scoreA - scoreB) * 10) / 10,
+    optimizationIterations: iterations,
   });
 }
