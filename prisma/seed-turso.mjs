@@ -189,6 +189,8 @@ const migrations = [
   `ALTER TABLE Purchase ADD COLUMN drawDate TEXT`,
   `ALTER TABLE CompanyIncome ADD COLUMN profile TEXT NOT NULL DEFAULT 'dadas'`,
   `CREATE INDEX IF NOT EXISTS idx_companyincome_profile ON CompanyIncome(profile)`,
+  `ALTER TABLE PlayerSkill ADD COLUMN isCaptain INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE PlayerSkill ADD COLUMN availability TEXT NOT NULL DEFAULT 'fit'`,
 ];
 for (const sql of migrations) {
   try { await db.execute(sql); } catch { /* column already exists */ }

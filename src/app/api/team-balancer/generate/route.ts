@@ -50,39 +50,86 @@ interface PlayerEntry {
   position: string;
   score: number;
   isGuest: boolean;
+  isCaptain: boolean;
 }
 
-// Score = base skill + age modifier + position modifier
-function calculateScore(skillTier: string, ageGroup: string, position: string): number {
+// Availability modifier: tired players play below their usual level.
+const AVAILABILITY_MODIFIERS: Record<string, number> = {
+  fit: 0,
+  tired: -0.5,
+  injured: 0, // injured players are excluded entirely, not just modified
+};
+
+// Score = base skill + age + position + availability + recent form
+function calculateScore(
+  skillTier: string,
+  ageGroup: string,
+  position: string,
+  availability = "fit",
+  recentFormMod = 0,
+): number {
   const base = SKILL_WEIGHTS[skillTier] ?? 3;
   const ageMod = AGE_MODIFIERS[ageGroup] ?? 0;
   const posMod = POSITION_MODIFIERS[position] ?? 0;
-  return Math.round((base + ageMod + posMod) * 10) / 10;
+  const availMod = AVAILABILITY_MODIFIERS[availability] ?? 0;
+  return Math.round((base + ageMod + posMod + availMod + recentFormMod) * 10) / 10;
 }
 
 export async function POST(req: NextRequest) {
   const { playerIds, guestPlayers } = await req.json();
 
-  const members = await prisma.member.findMany({
-    where: { id: { in: playerIds as string[] } },
-    include: { skill: true },
-  });
+  const [members, recentSheets] = await Promise.all([
+    prisma.member.findMany({
+      where: { id: { in: playerIds as string[] } },
+      include: { skill: true },
+    }),
+    // Last 5 TeamSheets — used to compute recent form (participation proxy)
+    prisma.teamSheet.findMany({ orderBy: { date: "desc" }, take: 5, select: { teamAIds: true, teamBIds: true } }),
+  ]);
 
-  const players: PlayerEntry[] = members.map((m) => {
+  // Build an appearances map (memberId -> count of times in last 5 sheets)
+  const appearances = new Map<string, number>();
+  for (const ts of recentSheets) {
+    const ids = new Set<string>();
+    try {
+      for (const x of JSON.parse(ts.teamAIds) as string[]) ids.add(x);
+      for (const x of JSON.parse(ts.teamBIds) as string[]) ids.add(x);
+    } catch { /* malformed json, skip */ }
+    for (const id of ids) appearances.set(id, (appearances.get(id) || 0) + 1);
+  }
+  // Convert appearances to a small modifier:
+  //   0 appearances in last 5 → -0.3 (rusty)
+  //   3-4 appearances        → +0.1 (in rhythm)
+  //   5 appearances          → +0.2 (very active)
+  function recentFormModifier(memberId: string): number {
+    const n = appearances.get(memberId) || 0;
+    if (n === 0) return -0.3;
+    if (n >= 5) return 0.2;
+    if (n >= 3) return 0.1;
+    return 0;
+  }
+
+  // Build player entries (filter out injured)
+  const players: PlayerEntry[] = [];
+  for (const m of members) {
     const skill = m.skill;
+    const availability = skill?.availability ?? "fit";
+    if (availability === "injured") continue; // exclude injured from team generation
     const skillTier = skill?.skillTier ?? "silver";
     const ageGroup = normalizeAge(skill?.ageGroup ?? "age30to40");
     const position = skill?.position ?? "any";
-    return {
+    const formMod = recentFormModifier(m.id);
+    players.push({
       id: m.id,
       name: m.name,
       skillTier,
       ageGroup,
       position,
-      score: calculateScore(skillTier, ageGroup, position),
+      score: calculateScore(skillTier, ageGroup, position, availability, formMod),
       isGuest: false,
-    };
-  });
+      isCaptain: !!skill?.isCaptain,
+    });
+  }
 
   // Add guest players (now with position too)
   if (guestPlayers && Array.isArray(guestPlayers)) {
@@ -98,6 +145,7 @@ export async function POST(req: NextRequest) {
         position,
         score: calculateScore(skillTier, ageGroup, position),
         isGuest: true,
+        isCaptain: false,
       });
     }
   }
@@ -153,10 +201,22 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Distribute by position priority — GK first, then defenders, then mids/forwards, "any" last
+  // Distribute captains FIRST — if exactly 2 captains are playing, assign one
+  // to each team. If 1, 3+, or 0 captains, treat them as regular players.
+  const captains = players.filter((p) => p.isCaptain);
+  const assignedCaptainIds = new Set<string>();
+  if (captains.length === 2) {
+    // Put higher-scored captain on Team A, the other on Team B (for predictability)
+    const [hi, lo] = [...captains].sort((a, b) => b.score - a.score);
+    teamA.push(hi); scoreA += hi.score; posCountA[hi.position] = (posCountA[hi.position] || 0) + 1;
+    teamB.push(lo); scoreB += lo.score; posCountB[lo.position] = (posCountB[lo.position] || 0) + 1;
+    assignedCaptainIds.add(hi.id); assignedCaptainIds.add(lo.id);
+  }
+
+  // Distribute the rest by position priority
   const positionOrder = ["goalkeeper", "defender", "midfielder", "forward", "any"];
   for (const pos of positionOrder) {
-    for (const p of players.filter((x) => x.position === pos)) {
+    for (const p of players.filter((x) => x.position === pos && !assignedCaptainIds.has(x.id))) {
       assign(p);
     }
   }
@@ -176,8 +236,9 @@ export async function POST(req: NextRequest) {
     const currentGap = gap();
     for (const a of teamA) {
       for (const b of teamB) {
-        // Only consider swaps that don't break position balance — same position preferred,
-        // or allow cross-position only if both teams keep at least 1 of each existing position.
+        // Don't swap captains apart — each team must keep exactly its captain
+        if (a.isCaptain || b.isCaptain) continue;
+        // Same position only (preserves position distribution)
         if (a.position !== b.position) continue;
         // Hypothetical new scores after swap
         const newScoreA = scoreA - a.score + b.score;

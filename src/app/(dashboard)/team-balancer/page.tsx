@@ -14,6 +14,8 @@ interface PlayerSkill {
   skillTier: string;
   ageGroup: string;
   position: string;
+  isCaptain: boolean;
+  availability: string;
   member: Member;
 }
 
@@ -25,6 +27,7 @@ interface PlayerEntry {
   position: string;
   score: number;
   isGuest: boolean;
+  isCaptain?: boolean;
 }
 
 interface TeamResult {
@@ -112,7 +115,7 @@ export default function TeamBalancerPage() {
   const [filterTier, setFilterTier] = useState("all");
   const [savingId, setSavingId] = useState<string | null>(null);
   const [editSkills, setEditSkills] = useState<
-    Record<string, { skillTier: string; ageGroup: string; position: string }>
+    Record<string, { skillTier: string; ageGroup: string; position: string; isCaptain: boolean; availability: string }>
   >({});
 
   // Generate tab state
@@ -201,6 +204,8 @@ export default function TeamBalancerPage() {
         skillTier: edit.skillTier,
         ageGroup: edit.ageGroup,
         position: edit.position,
+        isCaptain: edit.isCaptain,
+        availability: edit.availability,
       }),
     });
     await loadData();
@@ -214,10 +219,12 @@ export default function TeamBalancerPage() {
       skillTier: s?.skillTier ?? "silver",
       ageGroup: normalizeAgeClient(s?.ageGroup ?? "age30to40"),
       position: s?.position ?? "any",
+      isCaptain: s?.isCaptain ?? false,
+      availability: s?.availability ?? "fit",
     };
   }
 
-  function updateEdit(memberId: string, field: string, value: string) {
+  function updateEdit(memberId: string, field: string, value: string | boolean) {
     const current = getEditValue(memberId);
     setEditSkills((prev) => ({
       ...prev,
@@ -302,7 +309,9 @@ export default function TeamBalancerPage() {
     const aSorted = [...result.teamA].sort((p, q) => p.name.localeCompare(q.name));
     const bSorted = [...result.teamB].sort((p, q) => p.name.localeCompare(q.name));
 
-    const text = `⚽ *DADAS FC - Team Sheet*\n📅 ${dateStr}\n\n${colorA.emoji} *${colorA.name} Jersey*\n${aSorted.map((p, i) => `${i + 1}. ${p.name}${p.isGuest ? " (Guest)" : ""}`).join("\n")}\n\n${colorB.emoji} *${colorB.name} Jersey*\n${bSorted.map((p, i) => `${i + 1}. ${p.name}${p.isGuest ? " (Guest)" : ""}`).join("\n")}\n\n👥 ${result.teamA.length} vs ${result.teamB.length} players`;
+    const fmt = (p: PlayerEntry, i: number) =>
+      `${i + 1}. ${p.isCaptain ? "© " : ""}${p.name}${p.isGuest ? " (Guest)" : ""}`;
+    const text = `⚽ *DADAS FC - Team Sheet*\n📅 ${dateStr}\n\n${colorA.emoji} *${colorA.name} Jersey*\n${aSorted.map(fmt).join("\n")}\n\n${colorB.emoji} *${colorB.name} Jersey*\n${bSorted.map(fmt).join("\n")}\n\n👥 ${result.teamA.length} vs ${result.teamB.length} players`;
 
     if (navigator.share) {
       try {
@@ -398,16 +407,23 @@ export default function TeamBalancerPage() {
                 const s = skills[m.id];
                 const tier = s?.skillTier ?? "silver";
                 const isSelected = selectedIds.has(m.id);
+                const isInjured = s?.availability === "injured";
+                const isTired = s?.availability === "tired";
+                const isCaptain = !!s?.isCaptain;
                 return (
                   <button
                     key={m.id}
                     onClick={() => togglePlayer(m.id)}
-                    className={`flex flex-col items-center gap-1 p-3 rounded-xl text-center transition-all ${
+                    title={isInjured ? "Injured — will be excluded from team generation" : undefined}
+                    className={`flex flex-col items-center gap-1 p-3 rounded-xl text-center transition-all relative ${
                       isSelected
                         ? "bg-blue-50 border-2 border-blue-400 shadow-sm"
                         : "bg-gray-50 border-2 border-transparent hover:border-gray-200"
-                    }`}
+                    } ${isInjured ? "opacity-60" : ""}`}
                   >
+                    {isCaptain && <span className="absolute top-1 right-1 text-[10px] bg-amber-200 text-amber-900 font-bold px-1 rounded">©</span>}
+                    {isInjured && <span className="absolute top-1 left-1 text-[10px]">🚑</span>}
+                    {isTired && !isInjured && <span className="absolute top-1 left-1 text-[10px]">😓</span>}
                     <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
                       isSelected ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-500"
                     }`}>
@@ -598,6 +614,7 @@ export default function TeamBalancerPage() {
                             >
                               <span className={`text-xs w-5 font-bold ${jersey.name === "Black" ? "text-gray-400" : "text-gray-400"}`}>{i + 1}</span>
                               <span className={`font-medium flex-1 truncate text-sm ${jersey.text}`}>
+                                {p.isCaptain && <span className="text-xs font-bold mr-1" title="Captain">©</span>}
                                 {p.name}
                                 {p.isGuest && <span className="text-xs opacity-60 ml-1">(G)</span>}
                               </span>
@@ -674,15 +691,20 @@ export default function TeamBalancerPage() {
                 editSkills[m.id] &&
                 (editSkills[m.id].skillTier !== (skills[m.id]?.skillTier ?? "silver") ||
                   editSkills[m.id].ageGroup !== normalizeAgeClient(skills[m.id]?.ageGroup ?? "age30to40") ||
-                  editSkills[m.id].position !== (skills[m.id]?.position ?? "any"));
+                  editSkills[m.id].position !== (skills[m.id]?.position ?? "any") ||
+                  editSkills[m.id].isCaptain !== (skills[m.id]?.isCaptain ?? false) ||
+                  editSkills[m.id].availability !== (skills[m.id]?.availability ?? "fit"));
               return (
                 <div
                   key={m.id}
                   className="bg-white rounded-xl p-3 shadow-sm border border-gray-100 flex flex-col sm:flex-row sm:items-center gap-2"
                 >
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-semibold text-gray-800 truncate text-sm">{m.name}</span>
+                      {ev.isCaptain && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold">© CAPTAIN</span>}
+                      {ev.availability === "injured" && <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-800 font-bold">🚑 INJURED</span>}
+                      {ev.availability === "tired" && <span className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-800 font-bold">😓 TIRED</span>}
                       {getSkillBadge(ev.skillTier)}
                     </div>
                   </div>
@@ -714,6 +736,22 @@ export default function TeamBalancerPage() {
                         <option key={p.value} value={p.value}>{p.label}</option>
                       ))}
                     </select>
+                    <select
+                      value={ev.availability}
+                      onChange={(e) => updateEdit(m.id, "availability", e.target.value)}
+                      className="border rounded-lg px-2 py-1.5 text-xs bg-white"
+                      title="Fitness / availability"
+                    >
+                      <option value="fit">Fit</option>
+                      <option value="tired">Tired (-0.5)</option>
+                      <option value="injured">🚑 Injured (skip)</option>
+                    </select>
+                    <label className="inline-flex items-center gap-1 px-2 py-1.5 text-xs bg-white border rounded-lg cursor-pointer" title="Captain — algorithm puts one on each team">
+                      <input type="checkbox" checked={ev.isCaptain}
+                        onChange={(e) => updateEdit(m.id, "isCaptain", e.target.checked)}
+                        className="rounded text-amber-600" />
+                      <span className="font-semibold text-amber-700">©</span>
+                    </label>
                     <button
                       onClick={() => saveSkill(m.id)}
                       disabled={savingId === m.id || !hasChanges}
