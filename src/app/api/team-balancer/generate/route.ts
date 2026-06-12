@@ -22,16 +22,53 @@ const AGE_MODIFIERS: Record<string, number> = {
   veteran: -0.2,
 };
 
-// Position modifiers — small bonuses to recognise specialists.
-// Goalkeepers + defenders get a slight defensive bonus, attackers offensive.
-// "any" = utility player, no bonus.
+// Position modifiers — small bonuses to recognise specialists. Granular
+// positions get specific bonuses; legacy generic ones still work.
 const POSITION_MODIFIERS: Record<string, number> = {
-  goalkeeper: 0.5,
-  defender: 0.2,
-  midfielder: 0.3,
-  forward: 0.3,
+  // Goalkeeper
+  goalkeeper: 0.5, gk: 0.5,
+  // Defenders
+  cb: 0.3,         // centre back — most critical defender
+  lb: 0.2,         // left back
+  rb: 0.2,         // right back
+  lwb: 0.2,        // left wing-back
+  rwb: 0.2,        // right wing-back
+  sweeper: 0.3,
+  defender: 0.2,   // legacy generic
+  // Midfielders
+  cdm: 0.4, dm: 0.4,       // defensive mid (mid-back)
+  cm: 0.3,                  // central mid
+  cam: 0.3, am: 0.3,        // attacking mid (fwd-mid)
+  lm: 0.2,                  // left mid / winger
+  rm: 0.2,                  // right mid / winger
+  lw: 0.2, rw: 0.2,         // wingers
+  midfielder: 0.3,          // legacy generic
+  // Forwards
+  st: 0.3,                  // striker / centre forward
+  cf: 0.3,                  // centre forward
+  ss: 0.3,                  // second striker
+  forward: 0.3,             // legacy generic
+  // Utility
   any: 0,
 };
+
+// Category mapping: granular position → high-level role. Used by the
+// distribution algorithm so we balance ROLES across teams (a CB and an LB
+// both count as "defender" when checking team composition).
+const POSITION_CATEGORY: Record<string, string> = {
+  goalkeeper: "goalkeeper", gk: "goalkeeper",
+  cb: "defender", lb: "defender", rb: "defender",
+  lwb: "defender", rwb: "defender", sweeper: "defender", defender: "defender",
+  cdm: "midfielder", dm: "midfielder", cm: "midfielder",
+  cam: "midfielder", am: "midfielder",
+  lm: "midfielder", rm: "midfielder", lw: "midfielder", rw: "midfielder",
+  midfielder: "midfielder",
+  st: "forward", cf: "forward", ss: "forward", forward: "forward",
+  any: "any",
+};
+function categoryOf(pos: string): string {
+  return POSITION_CATEGORY[pos] || "any";
+}
 
 function normalizeAge(age: string): string {
   switch (age) {
@@ -172,34 +209,35 @@ export async function POST(req: NextRequest) {
   //  2) position count balanced (so one team isn't all defenders)
   //  3) total score balanced
   function assign(p: PlayerEntry) {
+    const cat = categoryOf(p.position);
     const sizeA = teamA.length;
     const sizeB = teamB.length;
     if (sizeA < sizeB) {
       teamA.push(p); scoreA += p.score;
-      posCountA[p.position] = (posCountA[p.position] || 0) + 1;
+      posCountA[cat] = (posCountA[cat] || 0) + 1;
       return;
     }
     if (sizeB < sizeA) {
       teamB.push(p); scoreB += p.score;
-      posCountB[p.position] = (posCountB[p.position] || 0) + 1;
+      posCountB[cat] = (posCountB[cat] || 0) + 1;
       return;
     }
-    // Sizes equal — prefer the team with fewer of this player's position
-    const posA = posCountA[p.position] || 0;
-    const posB = posCountB[p.position] || 0;
+    // Sizes equal — prefer the team with fewer of this player's role category
+    const posA = posCountA[cat] || 0;
+    const posB = posCountB[cat] || 0;
     if (posA < posB) {
-      teamA.push(p); scoreA += p.score; posCountA[p.position] = posA + 1;
+      teamA.push(p); scoreA += p.score; posCountA[cat] = posA + 1;
       return;
     }
     if (posB < posA) {
-      teamB.push(p); scoreB += p.score; posCountB[p.position] = posB + 1;
+      teamB.push(p); scoreB += p.score; posCountB[cat] = posB + 1;
       return;
     }
-    // Position equal too — assign to the lower-scoring team
+    // Role count equal too — assign to the lower-scoring team
     if (scoreA <= scoreB) {
-      teamA.push(p); scoreA += p.score; posCountA[p.position] = posA + 1;
+      teamA.push(p); scoreA += p.score; posCountA[cat] = posA + 1;
     } else {
-      teamB.push(p); scoreB += p.score; posCountB[p.position] = posB + 1;
+      teamB.push(p); scoreB += p.score; posCountB[cat] = posB + 1;
     }
   }
 
@@ -240,10 +278,10 @@ export async function POST(req: NextRequest) {
     assignedCaptainIds.add(hi.id); assignedCaptainIds.add(lo.id);
   }
 
-  // Distribute the rest by position priority
-  const positionOrder = ["goalkeeper", "defender", "midfielder", "forward", "any"];
-  for (const pos of positionOrder) {
-    for (const p of players.filter((x) => x.position === pos && !assignedCaptainIds.has(x.id))) {
+  // Distribute the rest by ROLE category priority (groups granular positions)
+  const categoryOrder = ["goalkeeper", "defender", "midfielder", "forward", "any"];
+  for (const cat of categoryOrder) {
+    for (const p of players.filter((x) => categoryOf(x.position) === cat && !assignedCaptainIds.has(x.id))) {
       assign(p);
     }
   }
@@ -288,7 +326,8 @@ export async function POST(req: NextRequest) {
     for (const a of teamA) {
       for (const b of teamB) {
         if (a.isCaptain || b.isCaptain) continue;
-        if (a.position !== b.position) continue;
+        // Same ROLE category (CB↔LB OK — both defenders; CB↔ST not OK)
+        if (categoryOf(a.position) !== categoryOf(b.position)) continue;
         // Hypothetical post-swap teams
         const newA = teamA.map((p) => (p === a ? b : p));
         const newB = teamB.map((p) => (p === b ? a : p));

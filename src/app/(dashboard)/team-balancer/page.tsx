@@ -82,13 +82,41 @@ function normalizeAgeClient(age: string): string {
   }
 }
 
+// Granular football positions, grouped via optgroup. Legacy generic values
+// (defender/midfielder/forward) still work — they map to the same category.
 const POSITIONS = [
-  { value: "any", label: "Any" },
+  { value: "any", label: "Any (utility)" },
+  // Goalkeeper
   { value: "goalkeeper", label: "GK" },
-  { value: "defender", label: "DEF" },
-  { value: "midfielder", label: "MID" },
-  { value: "forward", label: "FWD" },
+  // Defenders
+  { value: "cb", label: "CB (Centre Back)" },
+  { value: "lb", label: "LB (Left Back)" },
+  { value: "rb", label: "RB (Right Back)" },
+  { value: "lwb", label: "LWB (Left Wing-Back)" },
+  { value: "rwb", label: "RWB (Right Wing-Back)" },
+  { value: "defender", label: "DEF (any defender)" },
+  // Midfielders
+  { value: "cdm", label: "CDM (Defensive Mid / Mid-Back)" },
+  { value: "cm", label: "CM (Central Mid)" },
+  { value: "cam", label: "CAM (Attacking Mid / Fwd-Mid)" },
+  { value: "lm", label: "LM/LW (Left)" },
+  { value: "rm", label: "RM/RW (Right)" },
+  { value: "midfielder", label: "MID (any midfielder)" },
+  // Forwards
+  { value: "st", label: "ST (Striker)" },
+  { value: "cf", label: "CF (Centre Forward)" },
+  { value: "ss", label: "SS (Second Striker)" },
+  { value: "forward", label: "FWD (any forward)" },
 ];
+
+// Short label for compact display (badge / chip)
+const POSITION_SHORT: Record<string, string> = {
+  any: "—",
+  goalkeeper: "GK",
+  cb: "CB", lb: "LB", rb: "RB", lwb: "LWB", rwb: "RWB", defender: "DEF",
+  cdm: "CDM", cm: "CM", cam: "CAM", lm: "LM", rm: "RM", midfielder: "MID",
+  st: "ST", cf: "CF", ss: "SS", forward: "FWD",
+};
 
 const JERSEY_COLORS = [
   { name: "White", bg: "bg-white", border: "border-gray-300", text: "text-gray-900", headerBg: "bg-gray-100", headerText: "text-gray-900", footerBg: "bg-gray-50", footerText: "text-gray-800", emoji: "🤍" },
