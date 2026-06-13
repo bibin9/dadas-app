@@ -8,24 +8,16 @@ interface Member {
   active: boolean;
 }
 
+// Public page only ever receives non-rating fields from the server.
 interface PlayerSkill {
-  id: string;
   memberId: string;
-  skillTier: string;
-  ageGroup: string;
-  position: string;
   isCaptain: boolean;
   availability: string;
-  ballControl: string;
 }
 
 interface PlayerEntry {
   id: string;
   name: string;
-  skillTier: string;
-  ageGroup: string;
-  position: string;
-  score: number;
   isGuest: boolean;
   isCaptain?: boolean;
 }
@@ -33,10 +25,6 @@ interface PlayerEntry {
 interface TeamResult {
   teamA: PlayerEntry[];
   teamB: PlayerEntry[];
-  scoreA: number;
-  scoreB: number;
-  difference: number;
-  avoidViolations?: number;
 }
 
 interface GuestPlayer {
@@ -150,7 +138,7 @@ export default function PublicTeamsPage() {
       return;
     }
     setGenerating(true);
-    const res = await fetch("/api/team-balancer/generate", {
+    const res = await fetch("/api/team-balancer/generate-public", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -160,7 +148,7 @@ export default function PublicTeamsPage() {
       }),
     });
     const data = await res.json();
-    setResult(data);
+    setResult({ teamA: data.teamA || [], teamB: data.teamB || [] });
     const [a, b] = getRandomJerseyPair();
     setJerseyA(a);
     setJerseyB(b);
@@ -213,15 +201,7 @@ export default function PublicTeamsPage() {
     if (!a || !b) return;
     const newA = result.teamA.map((p) => (p.id === idA ? b : p));
     const newB = result.teamB.map((p) => (p.id === idB ? a : p));
-    const scoreA = newA.reduce((s, p) => s + p.score, 0);
-    const scoreB = newB.reduce((s, p) => s + p.score, 0);
-    setResult({
-      teamA: newA,
-      teamB: newB,
-      scoreA: Math.round(scoreA * 10) / 10,
-      scoreB: Math.round(scoreB * 10) / 10,
-      difference: Math.round(Math.abs(scoreA - scoreB) * 10) / 10,
-    });
+    setResult({ teamA: newA, teamB: newB });
     setSwapPick(null);
   }
 
@@ -329,7 +309,6 @@ export default function PublicTeamsPage() {
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 max-h-[350px] overflow-y-auto">
             {sortedMembers.map((m) => {
               const s = skills[m.id];
-              const tier = s?.skillTier ?? "silver";
               const isSelected = selectedIds.has(m.id);
               const isInjured = s?.availability === "injured";
               const isTired = s?.availability === "tired";
@@ -354,7 +333,6 @@ export default function PublicTeamsPage() {
                     {isSelected ? "✓" : m.name.charAt(0)}
                   </span>
                   <span className="text-xs font-medium text-gray-800 truncate w-full">{m.name}</span>
-                  {getSkillBadge(tier)}
                 </button>
               );
             })}
@@ -436,22 +414,9 @@ export default function PublicTeamsPage() {
         {!generating && result && (
           <div>
             <div className="text-center mb-3">
-              <span
-                className={`inline-block px-4 py-2 rounded-full text-sm font-bold ${
-                  result.difference <= 1
-                    ? "bg-green-100 text-green-800"
-                    : result.difference <= 2
-                    ? "bg-yellow-100 text-yellow-800"
-                    : "bg-red-100 text-red-800"
-                }`}
-              >
-                {result.difference === 0 ? "⚖️ Perfectly Balanced!" : `⚖️ Difference: ${result.difference} pts`}
+              <span className="inline-block px-4 py-2 rounded-full text-sm font-bold bg-green-100 text-green-800">
+                ⚖️ Balanced Teams Ready
               </span>
-              {(result.avoidViolations ?? 0) > 0 && (
-                <span className="ml-2 inline-block px-3 py-1 rounded-full text-xs font-bold bg-orange-100 text-orange-800">
-                  ⚠️ {result.avoidViolations} avoid-pair violation{result.avoidViolations === 1 ? "" : "s"}
-                </span>
-              )}
             </div>
 
             <p className="text-xs text-center text-gray-600 mb-3">
@@ -481,7 +446,6 @@ export default function PublicTeamsPage() {
               {(["A", "B"] as const).map((side) => {
                 const jersey = JERSEY_COLORS[side === "A" ? jerseyA : jerseyB];
                 const team = side === "A" ? result.teamA : result.teamB;
-                const score = side === "A" ? result.scoreA : result.scoreB;
                 const sorted = [...team].sort((p, q) => p.name.localeCompare(q.name));
                 return (
                   <div key={side} className={`${jersey.bg} rounded-xl shadow-sm border-2 ${jersey.border} overflow-hidden`}>
@@ -512,13 +476,12 @@ export default function PublicTeamsPage() {
                               {p.isGuest && <span className="text-xs opacity-60 ml-1">(G)</span>}
                             </span>
                             {picked && <span className="text-xs text-blue-700 font-bold">↔ pick partner</span>}
-                            {getSkillBadge(p.skillTier)}
                           </button>
                         );
                       })}
                     </div>
                     <div className={`${jersey.footerBg} px-4 py-2 text-center font-bold ${jersey.footerText} text-sm`}>
-                      {score} pts • {team.length} players
+                      {team.length} players
                     </div>
                   </div>
                 );

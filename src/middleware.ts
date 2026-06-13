@@ -13,8 +13,8 @@ export async function middleware(request: NextRequest) {
     pathname === "/login" ||
     pathname === "/help" || // public user manual — no login required
     pathname === "/teams" || // public team-builder — anyone can build teams
-    pathname === "/api/team-balancer/public-data" || // read-only data for /teams
-    pathname === "/api/team-balancer/generate" || // read-only compute (never writes)
+    pathname === "/api/team-balancer/public-data" || // read-only, rating-stripped data for /teams
+    pathname === "/api/team-balancer/generate-public" || // rating-stripped team build for /teams
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/api/backup") || // protected by its own BACKUP_TOKEN/CRON_SECRET
     pathname === "/manifest.json" ||
