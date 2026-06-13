@@ -9,7 +9,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const { memberId, skillTier, ageGroup, position, isCaptain, availability } = await req.json();
+  const { memberId, skillTier, ageGroup, position, isCaptain, availability, ballControl } = await req.json();
 
   const skill = await prisma.playerSkill.upsert({
     where: { memberId },
@@ -20,6 +20,7 @@ export async function POST(req: NextRequest) {
       position: position || "any",
       isCaptain: !!isCaptain,
       availability: availability || "fit",
+      ballControl: ballControl || "ok",
     },
     update: {
       skillTier: skillTier || "silver",
@@ -27,6 +28,7 @@ export async function POST(req: NextRequest) {
       position: position || "any",
       isCaptain: !!isCaptain,
       availability: availability || "fit",
+      ballControl: ballControl || "ok",
       updatedAt: new Date(),
     },
   });

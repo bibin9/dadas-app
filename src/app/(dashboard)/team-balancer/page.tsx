@@ -16,6 +16,7 @@ interface PlayerSkill {
   position: string;
   isCaptain: boolean;
   availability: string;
+  ballControl: string;
   member: Member;
 }
 
@@ -110,6 +111,14 @@ const POSITIONS = [
 ];
 
 // Short label for compact display (badge / chip)
+const BALL_CONTROL_OPTIONS = [
+  { value: "no", label: "No (-0.75)" },
+  { value: "less", label: "Less (-0.5)" },
+  { value: "ok", label: "Ok (0)" },
+  { value: "good", label: "Good (+0.5)" },
+  { value: "verygood", label: "Very Good (+1)" },
+];
+
 const POSITION_SHORT: Record<string, string> = {
   any: "—",
   goalkeeper: "GK",
@@ -154,7 +163,7 @@ export default function TeamBalancerPage() {
   const [filterTier, setFilterTier] = useState("all");
   const [savingId, setSavingId] = useState<string | null>(null);
   const [editSkills, setEditSkills] = useState<
-    Record<string, { skillTier: string; ageGroup: string; position: string; isCaptain: boolean; availability: string }>
+    Record<string, { skillTier: string; ageGroup: string; position: string; isCaptain: boolean; availability: string; ballControl: string }>
   >({});
 
   // Generate tab state
@@ -293,6 +302,7 @@ export default function TeamBalancerPage() {
         position: edit.position,
         isCaptain: edit.isCaptain,
         availability: edit.availability,
+        ballControl: edit.ballControl,
       }),
     });
     await loadData();
@@ -308,6 +318,7 @@ export default function TeamBalancerPage() {
       position: s?.position ?? "any",
       isCaptain: s?.isCaptain ?? false,
       availability: s?.availability ?? "fit",
+      ballControl: s?.ballControl ?? "ok",
     };
   }
 
@@ -848,7 +859,8 @@ export default function TeamBalancerPage() {
                   editSkills[m.id].ageGroup !== normalizeAgeClient(skills[m.id]?.ageGroup ?? "age30to40") ||
                   editSkills[m.id].position !== (skills[m.id]?.position ?? "any") ||
                   editSkills[m.id].isCaptain !== (skills[m.id]?.isCaptain ?? false) ||
-                  editSkills[m.id].availability !== (skills[m.id]?.availability ?? "fit"));
+                  editSkills[m.id].availability !== (skills[m.id]?.availability ?? "fit") ||
+                  editSkills[m.id].ballControl !== (skills[m.id]?.ballControl ?? "ok"));
               return (
                 <div
                   key={m.id}
@@ -898,8 +910,18 @@ export default function TeamBalancerPage() {
                       title="Fitness / availability"
                     >
                       <option value="fit">Fit</option>
-                      <option value="tired">Tired (-0.5)</option>
+                      <option value="tired">Tired (-1)</option>
                       <option value="injured">🚑 Injured (skip)</option>
+                    </select>
+                    <select
+                      value={ev.ballControl}
+                      onChange={(e) => updateEdit(m.id, "ballControl", e.target.value)}
+                      className="border rounded-lg px-2 py-1.5 text-xs bg-white"
+                      title="Ball control skill"
+                    >
+                      {BALL_CONTROL_OPTIONS.map((b) => (
+                        <option key={b.value} value={b.value}>⚽ {b.label}</option>
+                      ))}
                     </select>
                     <label className="inline-flex items-center gap-1 px-2 py-1.5 text-xs bg-white border rounded-lg cursor-pointer" title="Captain — algorithm puts one on each team">
                       <input type="checkbox" checked={ev.isCaptain}

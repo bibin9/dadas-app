@@ -201,6 +201,7 @@ const migrations = [
   `CREATE INDEX IF NOT EXISTS idx_companyincome_profile ON CompanyIncome(profile)`,
   `ALTER TABLE PlayerSkill ADD COLUMN isCaptain INTEGER NOT NULL DEFAULT 0`,
   `ALTER TABLE PlayerSkill ADD COLUMN availability TEXT NOT NULL DEFAULT 'fit'`,
+  `ALTER TABLE PlayerSkill ADD COLUMN ballControl TEXT NOT NULL DEFAULT 'ok'`,
 ];
 for (const sql of migrations) {
   try { await db.execute(sql); } catch { /* column already exists */ }

@@ -90,26 +90,47 @@ interface PlayerEntry {
   isCaptain: boolean;
 }
 
-// Availability modifier: tired players play below their usual level.
+// Availability modifier: tired players play 1 full point below their level.
 const AVAILABILITY_MODIFIERS: Record<string, number> = {
   fit: 0,
-  tired: -0.5,
+  tired: -1,
   injured: 0, // injured players are excluded entirely, not just modified
 };
 
-// Score = base skill + age + position + availability + recent form
+// Ball-control modifier — independent technical skill rating.
+const BALL_CONTROL_MODIFIERS: Record<string, number> = {
+  no: -0.75,
+  less: -0.5,
+  ok: 0,
+  good: 0.5,
+  verygood: 1,
+};
+
+// Special rule: a Silver-tier player who is BOTH over 50 AND tired
+// should be treated as Bronze (effective skill drop from being old + tired).
+function effectiveSkillTier(skillTier: string, ageGroup: string, availability: string): string {
+  if (skillTier === "silver" && ageGroup === "over50" && availability === "tired") {
+    return "bronze";
+  }
+  return skillTier;
+}
+
+// Score = base skill + age + position + availability + ball control + recent form
 function calculateScore(
   skillTier: string,
   ageGroup: string,
   position: string,
   availability = "fit",
+  ballControl = "ok",
   recentFormMod = 0,
 ): number {
-  const base = SKILL_WEIGHTS[skillTier] ?? 3;
+  const tier = effectiveSkillTier(skillTier, ageGroup, availability);
+  const base = SKILL_WEIGHTS[tier] ?? 3;
   const ageMod = AGE_MODIFIERS[ageGroup] ?? 0;
   const posMod = POSITION_MODIFIERS[position] ?? 0;
   const availMod = AVAILABILITY_MODIFIERS[availability] ?? 0;
-  return Math.round((base + ageMod + posMod + availMod + recentFormMod) * 10) / 10;
+  const bcMod = BALL_CONTROL_MODIFIERS[ballControl] ?? 0;
+  return Math.round((base + ageMod + posMod + availMod + bcMod + recentFormMod) * 10) / 10;
 }
 
 export async function POST(req: NextRequest) {
@@ -157,6 +178,7 @@ export async function POST(req: NextRequest) {
     const skillTier = skill?.skillTier ?? "silver";
     const ageGroup = normalizeAge(skill?.ageGroup ?? "age30to40");
     const position = skill?.position ?? "any";
+    const ballControl = skill?.ballControl ?? "ok";
     const formMod = recentFormModifier(m.id);
     players.push({
       id: m.id,
@@ -164,7 +186,7 @@ export async function POST(req: NextRequest) {
       skillTier,
       ageGroup,
       position,
-      score: calculateScore(skillTier, ageGroup, position, availability, formMod),
+      score: calculateScore(skillTier, ageGroup, position, availability, ballControl, formMod),
       isGuest: false,
       isCaptain: !!skill?.isCaptain,
     });
@@ -176,13 +198,15 @@ export async function POST(req: NextRequest) {
       const ageGroup = normalizeAge(g.ageGroup || "age30to40");
       const skillTier = g.skillTier || "silver";
       const position = g.position || "any";
+      const ballControl = g.ballControl || "ok";
+      const availability = g.availability || "fit";
       players.push({
         id: `guest-${Date.now()}-${Math.random().toString(36).slice(2)}`,
         name: g.name,
         skillTier,
         ageGroup,
         position,
-        score: calculateScore(skillTier, ageGroup, position),
+        score: calculateScore(skillTier, ageGroup, position, availability, ballControl),
         isGuest: true,
         isCaptain: false,
       });
@@ -200,45 +224,49 @@ export async function POST(req: NextRequest) {
   const teamB: PlayerEntry[] = [];
   let scoreA = 0;
   let scoreB = 0;
-  // Track per-position counts so we distribute specialists evenly across teams
-  const posCountA: Record<string, number> = {};
+  // Track per-category AND per-exact-position counts so we can distribute
+  // specialists evenly (e.g. 4 CBs → 2 per team, not 4-0 just because they're
+  // all "defenders") while still keeping high-level role balance.
+  const posCountA: Record<string, number> = {}; // by category
   const posCountB: Record<string, number> = {};
+  const exactCountA: Record<string, number> = {}; // by exact position (cb, lb, ...)
+  const exactCountB: Record<string, number> = {};
 
   // Assign helper: pick the team that keeps:
   //  1) team size balanced (most important — max diff of 1)
-  //  2) position count balanced (so one team isn't all defenders)
-  //  3) total score balanced
+  //  2) EXACT position count balanced (so multiple CBs split evenly)
+  //  3) role category count balanced (so one team isn't all defenders)
+  //  4) total score balanced
+  function pushA(p: PlayerEntry) {
+    const cat = categoryOf(p.position);
+    teamA.push(p); scoreA += p.score;
+    posCountA[cat] = (posCountA[cat] || 0) + 1;
+    exactCountA[p.position] = (exactCountA[p.position] || 0) + 1;
+  }
+  function pushB(p: PlayerEntry) {
+    const cat = categoryOf(p.position);
+    teamB.push(p); scoreB += p.score;
+    posCountB[cat] = (posCountB[cat] || 0) + 1;
+    exactCountB[p.position] = (exactCountB[p.position] || 0) + 1;
+  }
   function assign(p: PlayerEntry) {
     const cat = categoryOf(p.position);
     const sizeA = teamA.length;
     const sizeB = teamB.length;
-    if (sizeA < sizeB) {
-      teamA.push(p); scoreA += p.score;
-      posCountA[cat] = (posCountA[cat] || 0) + 1;
-      return;
-    }
-    if (sizeB < sizeA) {
-      teamB.push(p); scoreB += p.score;
-      posCountB[cat] = (posCountB[cat] || 0) + 1;
-      return;
-    }
-    // Sizes equal — prefer the team with fewer of this player's role category
+    if (sizeA < sizeB) { pushA(p); return; }
+    if (sizeB < sizeA) { pushB(p); return; }
+    // Sizes equal — tier 2: prefer team with fewer of this EXACT position
+    const exA = exactCountA[p.position] || 0;
+    const exB = exactCountB[p.position] || 0;
+    if (exA < exB) { pushA(p); return; }
+    if (exB < exA) { pushB(p); return; }
+    // Tier 3: prefer team with fewer of this role category
     const posA = posCountA[cat] || 0;
     const posB = posCountB[cat] || 0;
-    if (posA < posB) {
-      teamA.push(p); scoreA += p.score; posCountA[cat] = posA + 1;
-      return;
-    }
-    if (posB < posA) {
-      teamB.push(p); scoreB += p.score; posCountB[cat] = posB + 1;
-      return;
-    }
-    // Role count equal too — assign to the lower-scoring team
-    if (scoreA <= scoreB) {
-      teamA.push(p); scoreA += p.score; posCountA[cat] = posA + 1;
-    } else {
-      teamB.push(p); scoreB += p.score; posCountB[cat] = posB + 1;
-    }
+    if (posA < posB) { pushA(p); return; }
+    if (posB < posA) { pushB(p); return; }
+    // Tier 4: lower-scoring team
+    if (scoreA <= scoreB) pushA(p); else pushB(p);
   }
 
   // Auto-pick captains from the pool of flagged captains ONLY.
@@ -273,8 +301,7 @@ export async function POST(req: NextRequest) {
   if (captains.length === 2) {
     // Put higher-scored captain on Team A, the other on Team B (for predictability)
     const [hi, lo] = [...captains].sort((a, b) => b.score - a.score);
-    teamA.push(hi); scoreA += hi.score; posCountA[hi.position] = (posCountA[hi.position] || 0) + 1;
-    teamB.push(lo); scoreB += lo.score; posCountB[lo.position] = (posCountB[lo.position] || 0) + 1;
+    pushA(hi); pushB(lo);
     assignedCaptainIds.add(hi.id); assignedCaptainIds.add(lo.id);
   }
 
@@ -322,6 +349,21 @@ export async function POST(req: NextRequest) {
     return imbalance;
   }
 
+  // Per-EXACT-position imbalance — penalises lopsided CB/LB/etc.
+  function exactPositionImbalance(tA: PlayerEntry[], tB: PlayerEntry[]): number {
+    const countsA: Record<string, number> = {};
+    const countsB: Record<string, number> = {};
+    for (const p of tA) countsA[p.position] = (countsA[p.position] || 0) + 1;
+    for (const p of tB) countsB[p.position] = (countsB[p.position] || 0) + 1;
+    const positions = new Set([...Object.keys(countsA), ...Object.keys(countsB)]);
+    let imbalance = 0;
+    for (const pos of positions) {
+      if (pos === "any") continue; // utility players are flexible
+      imbalance += Math.abs((countsA[pos] || 0) - (countsB[pos] || 0));
+    }
+    return imbalance;
+  }
+
   // ── Multi-phase optimization ──
   // Goal: get score gap as close to 0 as possible (target ≤ 1 pt), while
   // preserving position balance as much as the composition allows.
@@ -350,6 +392,7 @@ export async function POST(req: NextRequest) {
       const curV = countViolations(teamA, teamB);
       const curG = gap();
       const curImb = categoryImbalance(teamA, teamB);
+      const curExactImb = exactPositionImbalance(teamA, teamB);
       // If we're already at target, stop early
       if (curG <= targetGap && curV === 0) break;
       for (const a of teamA) {
@@ -360,8 +403,9 @@ export async function POST(req: NextRequest) {
           const newB = teamB.map((p) => (p === b ? a : p));
           const newV = countViolations(newA, newB);
           const newImb = categoryImbalance(newA, newB);
-          // Phase 2 guard: don't worsen position imbalance
-          if (requireParity && newImb > curImb) continue;
+          const newExactImb = exactPositionImbalance(newA, newB);
+          // Phase 2 guard: don't worsen category OR exact-position imbalance
+          if (requireParity && (newImb > curImb || newExactImb > curExactImb)) continue;
           const newGap = Math.abs(scoreA - a.score + b.score - (scoreB - b.score + a.score));
           const vDelta = newV - curV;
           const gDelta = newGap - curG;

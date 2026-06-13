@@ -187,6 +187,7 @@ model PlayerSkill {
   position     String   @default("any")
   isCaptain    Boolean  @default(false) // captain flag — algorithm puts one on each team
   availability String   @default("fit")  // "fit" | "tired" (-modifier) | "injured" (excluded)
+  ballControl  String   @default("ok")   // "no" -0.75 | "less" -0.5 | "ok" 0 | "good" +0.5 | "verygood" +1
   createdAt    DateTime @default(now())
   updatedAt    DateTime @default(now())
 
