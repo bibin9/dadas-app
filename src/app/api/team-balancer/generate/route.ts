@@ -432,15 +432,20 @@ export async function POST(req: NextRequest) {
   }
 
   const TARGET_GAP = 1.0;
+  // We escalate to a more permissive phase if EITHER the score gap is still
+  // above target OR there is an unresolved avoid-pair violation. A clash
+  // between two players of different positions can't be fixed by same-category
+  // swaps, so we must allow cross-category swaps even when the score is fine.
+  const notDone = () => gap() > TARGET_GAP || countViolations(teamA, teamB) > 0;
   let totalIter = 0;
   // Phase 1: strict — same category swaps only
   totalIter += runOptimizationPhase(true, false, TARGET_GAP);
   // Phase 2: cross-category allowed, but only if position imbalance doesn't worsen
-  if (gap() > TARGET_GAP) {
+  if (notDone()) {
     totalIter += runOptimizationPhase(false, true, TARGET_GAP);
   }
-  // Phase 3: any swap — last resort to get under 1 pt
-  if (gap() > TARGET_GAP) {
+  // Phase 3: any swap — last resort to clear violations / get under 1 pt
+  if (notDone()) {
     totalIter += runOptimizationPhase(false, false, TARGET_GAP);
   }
 

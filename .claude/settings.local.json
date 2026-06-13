@@ -162,7 +162,8 @@
       "Bash(curl -s -b /tmp/c.txt -X POST \"https://dadas-app.vercel.app/api/team-balancer/generate\" -H \"Content-Type: application/json\" -d '{\"playerIds\":[],\"guestPlayers\":[{\"name\":\"GK1\",\"skillTier\":\"gold\",\"ageGroup\":\"age30to40\",\"position\":\"goalkeeper\"},{\"name\":\"GK2\",\"skillTier\":\"silver\",\"ageGroup\":\"age30to40\",\"position\":\"goalkeeper\"},{\"name\":\"CB1\",\"skillTier\":\"gold\",\"ageGroup\":\"under30\",\"position\":\"cb\"},{\"name\":\"CB2\",\"skillTier\":\"silver\",\"ageGroup\":\"age30to40\",\"position\":\"cb\"},{\"name\":\"LB1\",\"skillTier\":\"silver\",\"ageGroup\":\"age30to40\",\"position\":\"lb\"},{\"name\":\"RB1\",\"skillTier\":\"silver\",\"ageGroup\":\"age30to40\",\"position\":\"rb\"},{\"name\":\"CDM1\",\"skillTier\":\"gold\",\"ageGroup\":\"under30\",\"position\":\"cdm\"},{\"name\":\"CM1\",\"skillTier\":\"silver\",\"ageGroup\":\"age30to40\",\"position\":\"cm\"},{\"name\":\"CM2\",\"skillTier\":\"bronze\",\"ageGroup\":\"age40to50\",\"position\":\"cm\"},{\"name\":\"CM3\",\"skillTier\":\"silver\",\"ageGroup\":\"age30to40\",\"position\":\"cm\"},{\"name\":\"CAM1\",\"skillTier\":\"gold\",\"ageGroup\":\"under30\",\"position\":\"cam\"},{\"name\":\"LM1\",\"skillTier\":\"silver\",\"ageGroup\":\"age30to40\",\"position\":\"lm\"},{\"name\":\"RM1\",\"skillTier\":\"silver\",\"ageGroup\":\"age30to40\",\"position\":\"rm\"},{\"name\":\"ST1\",\"skillTier\":\"master\",\"ageGroup\":\"under30\",\"position\":\"st\"}],\"autoCaptain\":false}')",
       "Bash(curl -s \"https://dadas-app.vercel.app/api/backup?token=dadas-backup-2026-secure&download=1\" -o \"backups/manual-2026-05-14i-before-ball-control.json\")",
       "Bash(python -c \"import json; d=json.load\\(open\\('backups/manual-2026-05-14i-before-ball-control.json'\\)\\); print\\('Snapshot ok. Counts:', json.dumps\\(d['counts']\\)\\)\")",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(vercel --prod --yes)"
     ]
   }
 }
