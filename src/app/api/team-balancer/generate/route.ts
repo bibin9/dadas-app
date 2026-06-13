@@ -308,54 +308,96 @@ export async function POST(req: NextRequest) {
     return v;
   }
 
-  // ── Optimization pass ──
-  // The greedy assignment can leave a score gap AND avoid-pair violations.
-  // Try every same-position swap (A↔B) and keep the one that BEST improves
-  // the result. Priority: reduce violations first, then reduce score gap.
-  // Hard caps: team size stays equal, captains stay where they are.
   function gap() { return Math.abs(scoreA - scoreB); }
-  let iterations = 0;
-  const MAX_ITER = 300;
-  while (iterations < MAX_ITER) {
-    iterations++;
-    let bestPair: { a: PlayerEntry; b: PlayerEntry } | null = null;
-    let bestViolationDelta = 0;   // negative = fewer violations after swap
-    let bestGapDelta = 0;         // negative = smaller gap after swap
-    const currentViolations = countViolations(teamA, teamB);
-    const currentGap = gap();
-    for (const a of teamA) {
-      for (const b of teamB) {
-        if (a.isCaptain || b.isCaptain) continue;
-        // Same ROLE category (CB↔LB OK — both defenders; CB↔ST not OK)
-        if (categoryOf(a.position) !== categoryOf(b.position)) continue;
-        // Hypothetical post-swap teams
-        const newA = teamA.map((p) => (p === a ? b : p));
-        const newB = teamB.map((p) => (p === b ? a : p));
-        const newViolations = countViolations(newA, newB);
-        const newScoreA = scoreA - a.score + b.score;
-        const newScoreB = scoreB - b.score + a.score;
-        const newGap = Math.abs(newScoreA - newScoreB);
-        const vDelta = newViolations - currentViolations;
-        const gDelta = newGap - currentGap;
-        // Priority: pick swaps that reduce violations OR
-        // (same violations AND reduce gap)
-        const better =
-          vDelta < bestViolationDelta - 0.0001 ||
-          (Math.abs(vDelta - bestViolationDelta) < 0.0001 && gDelta < bestGapDelta - 0.0001);
-        if (better && (vDelta < 0 || (vDelta === 0 && gDelta < 0))) {
-          bestViolationDelta = vDelta;
-          bestGapDelta = gDelta;
-          bestPair = { a, b };
+
+  // Per-category imbalance across teams. Lower = better position distribution.
+  function categoryImbalance(tA: PlayerEntry[], tB: PlayerEntry[]): number {
+    const countsA: Record<string, number> = {};
+    const countsB: Record<string, number> = {};
+    for (const p of tA) countsA[categoryOf(p.position)] = (countsA[categoryOf(p.position)] || 0) + 1;
+    for (const p of tB) countsB[categoryOf(p.position)] = (countsB[categoryOf(p.position)] || 0) + 1;
+    const cats = new Set([...Object.keys(countsA), ...Object.keys(countsB)]);
+    let imbalance = 0;
+    for (const c of cats) imbalance += Math.abs((countsA[c] || 0) - (countsB[c] || 0));
+    return imbalance;
+  }
+
+  // ── Multi-phase optimization ──
+  // Goal: get score gap as close to 0 as possible (target ≤ 1 pt), while
+  // preserving position balance as much as the composition allows.
+  // Each phase relaxes constraints further so that even with incomplete
+  // position rosters, the score gap converges.
+  //
+  // Phase 1: same category swaps (preserves role distribution exactly)
+  // Phase 2: cross-category swaps that don't WORSEN the position imbalance
+  // Phase 3: any swap allowed (last resort if still > 1 pt)
+  //
+  // In every phase: violations take priority over score gap (we won't
+  // worsen avoid-pair violations to fix the score, and we will accept
+  // worse score to fix a violation).
+  function runOptimizationPhase(
+    sameCategory: boolean,
+    requireParity: boolean,
+    targetGap: number,
+  ): number {
+    let iter = 0;
+    const MAX = 300;
+    while (iter < MAX) {
+      iter++;
+      let bestPair: { a: PlayerEntry; b: PlayerEntry } | null = null;
+      let bestVDelta = 0;
+      let bestGDelta = 0;
+      const curV = countViolations(teamA, teamB);
+      const curG = gap();
+      const curImb = categoryImbalance(teamA, teamB);
+      // If we're already at target, stop early
+      if (curG <= targetGap && curV === 0) break;
+      for (const a of teamA) {
+        for (const b of teamB) {
+          if (a.isCaptain || b.isCaptain) continue;
+          if (sameCategory && categoryOf(a.position) !== categoryOf(b.position)) continue;
+          const newA = teamA.map((p) => (p === a ? b : p));
+          const newB = teamB.map((p) => (p === b ? a : p));
+          const newV = countViolations(newA, newB);
+          const newImb = categoryImbalance(newA, newB);
+          // Phase 2 guard: don't worsen position imbalance
+          if (requireParity && newImb > curImb) continue;
+          const newGap = Math.abs(scoreA - a.score + b.score - (scoreB - b.score + a.score));
+          const vDelta = newV - curV;
+          const gDelta = newGap - curG;
+          // Decision: violations first, then score gap
+          const isBetter =
+            vDelta < bestVDelta - 0.0001 ||
+            (Math.abs(vDelta - bestVDelta) < 0.0001 && gDelta < bestGDelta - 0.0001);
+          if (isBetter && (vDelta < 0 || (vDelta === 0 && gDelta < 0))) {
+            bestVDelta = vDelta;
+            bestGDelta = gDelta;
+            bestPair = { a, b };
+          }
         }
       }
+      if (!bestPair) break;
+      const iA = teamA.indexOf(bestPair.a);
+      const iB = teamB.indexOf(bestPair.b);
+      teamA[iA] = bestPair.b;
+      teamB[iB] = bestPair.a;
+      scoreA = scoreA - bestPair.a.score + bestPair.b.score;
+      scoreB = scoreB - bestPair.b.score + bestPair.a.score;
     }
-    if (!bestPair) break;
-    const iA = teamA.indexOf(bestPair.a);
-    const iB = teamB.indexOf(bestPair.b);
-    teamA[iA] = bestPair.b;
-    teamB[iB] = bestPair.a;
-    scoreA = scoreA - bestPair.a.score + bestPair.b.score;
-    scoreB = scoreB - bestPair.b.score + bestPair.a.score;
+    return iter;
+  }
+
+  const TARGET_GAP = 1.0;
+  let totalIter = 0;
+  // Phase 1: strict — same category swaps only
+  totalIter += runOptimizationPhase(true, false, TARGET_GAP);
+  // Phase 2: cross-category allowed, but only if position imbalance doesn't worsen
+  if (gap() > TARGET_GAP) {
+    totalIter += runOptimizationPhase(false, true, TARGET_GAP);
+  }
+  // Phase 3: any swap — last resort to get under 1 pt
+  if (gap() > TARGET_GAP) {
+    totalIter += runOptimizationPhase(false, false, TARGET_GAP);
   }
 
   return NextResponse.json({
@@ -364,7 +406,7 @@ export async function POST(req: NextRequest) {
     scoreA: Math.round(scoreA * 10) / 10,
     scoreB: Math.round(scoreB * 10) / 10,
     difference: Math.round(Math.abs(scoreA - scoreB) * 10) / 10,
-    optimizationIterations: iterations,
+    optimizationIterations: totalIter,
     avoidViolations: countViolations(teamA, teamB),
   });
 }
