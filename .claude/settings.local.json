@@ -163,7 +163,17 @@
       "Bash(curl -s \"https://dadas-app.vercel.app/api/backup?token=dadas-backup-2026-secure&download=1\" -o \"backups/manual-2026-05-14i-before-ball-control.json\")",
       "Bash(python -c \"import json; d=json.load\\(open\\('backups/manual-2026-05-14i-before-ball-control.json'\\)\\); print\\('Snapshot ok. Counts:', json.dumps\\(d['counts']\\)\\)\")",
       "Bash(git commit *)",
-      "Bash(vercel --prod --yes)"
+      "Bash(vercel --prod --yes)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" \"https://dadas-app.vercel.app/api/team-balancer/public-data\")",
+      "Bash(curl -s \"https://dadas-app.vercel.app/api/team-balancer/public-data\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('members:', len\\(d.get\\('members',[]\\)\\), '| skills:', len\\(d.get\\('skills',[]\\)\\)\\); print\\('sample skill keys:', list\\(d['skills'][0].keys\\(\\)\\) if d.get\\('skills'\\) else 'none'\\)\")",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" \"https://dadas-app.vercel.app/teams\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('teamA:', len\\(d.get\\('teamA',[]\\)\\), '| teamB:', len\\(d.get\\('teamB',[]\\)\\), '| diff:', d.get\\('difference'\\), 'pts | violations:', d.get\\('avoidViolations'\\)\\)\")",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" \"https://dadas-app.vercel.app/api/members\")",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" \"https://dadas-app.vercel.app/api/team-balancer/skills\")",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" \"https://dadas-app.vercel.app/api/team-balancer/avoid-pairs\")",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" \"https://dadas-app.vercel.app/team-balancer\")",
+      "Bash(TURSO_DATABASE_URL=\"libsql://dadas-app-bibin.aws-ap-south-1.turso.io\" TURSO_AUTH_TOKEN=\"eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3NzYwMjQwNjUsImlkIjoiMDE5ZDdjOGMtNzAwMS03Mjg5LTk3MzItMzEwOTJjMTQ3ZTBmIiwicmlkIjoiNmFjYjM4NDgtZWY0My00YzFhLThiODAtMTA2NWY0MWE5ZWU2In0.IZ-AsANLB71CDlve4qa6onFC_vGzq3qDIRSaPnsG760h-B7uMbUk9_IOG2jb3pE_J4xxq_a7izT1Rt7lm08HDg\" node check-avoid.mjs)"
     ]
   }
 }

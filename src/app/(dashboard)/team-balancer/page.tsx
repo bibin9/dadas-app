@@ -785,8 +785,8 @@ export default function TeamBalancerPage() {
           <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mb-4">
             <h3 className="text-sm font-bold text-gray-800 mb-2">🚫 Avoid Pairs <span className="font-normal text-gray-500 text-xs">— rivalries / clashes</span></h3>
             <p className="text-xs text-gray-600 mb-3">
-              Tell the algorithm which members shouldn&apos;t end up on the same team (clash) or on opposing teams (rivalry).
-              These are soft constraints — the swap optimizer prioritizes fewer violations.
+              Pick two members and choose whether to <strong>keep them apart</strong> (never on the same team)
+              or <strong>keep them together</strong> (always on the same team). The optimizer prioritizes honouring these.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 mb-3">
               <select value={avoidA} onChange={(e) => setAvoidA(e.target.value)} className="border rounded-lg px-2 py-1.5 text-sm bg-white">
@@ -798,8 +798,8 @@ export default function TeamBalancerPage() {
                 {sortedMembers.map((m) => <option key={m.id} value={m.id} disabled={m.id === avoidA}>{m.name}</option>)}
               </select>
               <select value={avoidType} onChange={(e) => setAvoidType(e.target.value as "same" | "opposing")} className="border rounded-lg px-2 py-1.5 text-sm bg-white">
-                <option value="same">❌ Same team (clash)</option>
-                <option value="opposing">⚔️ Opposing (rivalry)</option>
+                <option value="same">🚫 Keep APART (never same team)</option>
+                <option value="opposing">🤝 Keep TOGETHER (always same team)</option>
               </select>
               <button onClick={addAvoidPair} disabled={!avoidA || !avoidB || avoidA === avoidB || avoidSubmitting}
                 className="bg-blue-600 text-white rounded-lg px-3 py-1.5 text-sm font-semibold hover:bg-blue-700 disabled:opacity-50">
@@ -812,7 +812,7 @@ export default function TeamBalancerPage() {
                   <span key={p.id} className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${
                     p.type === "same" ? "bg-red-50 text-red-800 border border-red-200" : "bg-purple-50 text-purple-800 border border-purple-200"
                   }`}>
-                    {p.type === "same" ? "❌" : "⚔️"} <strong>{p.memberAName}</strong> &amp; <strong>{p.memberBName}</strong>
+                    {p.type === "same" ? "🚫 Apart:" : "🤝 Together:"} <strong>{p.memberAName}</strong> &amp; <strong>{p.memberBName}</strong>
                     <button onClick={() => removeAvoidPair(p.id)} className="ml-1 text-gray-500 hover:text-red-600 font-bold" title="Remove">×</button>
                   </span>
                 ))}
