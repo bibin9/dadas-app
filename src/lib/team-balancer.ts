@@ -84,6 +84,8 @@ export interface PlayerEntry {
   skillTier: string;
   ageGroup: string;
   position: string;
+  ballControl: string;
+  runningSpeed: string;
   score: number;
   isGuest: boolean;
   isCaptain: boolean;
@@ -107,6 +109,8 @@ export interface BuiltTeams {
   difference: number;
   optimizationIterations: number;
   avoidViolations: number;
+  // Combined speed + ball-control distribution imbalance (0 = perfectly even).
+  attributeImbalance: number;
 }
 
 // Availability modifier: tired players play 1 full point below their level.
@@ -219,6 +223,8 @@ export async function buildTeams(
       skillTier,
       ageGroup,
       position,
+      ballControl,
+      runningSpeed,
       score: calculateScore(skillTier, ageGroup, position, availability, ballControl, runningSpeed, formMod),
       isGuest: false,
       isCaptain: !!skill?.isCaptain,
@@ -240,6 +246,8 @@ export async function buildTeams(
         skillTier,
         ageGroup,
         position,
+        ballControl,
+        runningSpeed,
         score: calculateScore(skillTier, ageGroup, position, availability, ballControl, runningSpeed),
         isGuest: true,
         isCaptain: false,
@@ -398,6 +406,28 @@ export async function buildTeams(
     return imbalance;
   }
 
+  // Generic bucket imbalance: how unevenly a categorical attribute is split.
+  // 0 = each distinct value appears equally on both teams.
+  function bucketImbalance(tA: PlayerEntry[], tB: PlayerEntry[], key: (p: PlayerEntry) => string): number {
+    const ca: Record<string, number> = {};
+    const cb: Record<string, number> = {};
+    for (const p of tA) ca[key(p)] = (ca[key(p)] || 0) + 1;
+    for (const p of tB) cb[key(p)] = (cb[key(p)] || 0) + 1;
+    const keys = new Set([...Object.keys(ca), ...Object.keys(cb)]);
+    let s = 0;
+    for (const k of keys) s += Math.abs((ca[k] || 0) - (cb[k] || 0));
+    return s;
+  }
+
+  // Attribute distribution imbalance: running speed + ball control combined.
+  // Lower = fast/slow players and each ball-control level are evenly spread.
+  function attributeImbalance(tA: PlayerEntry[], tB: PlayerEntry[]): number {
+    return (
+      bucketImbalance(tA, tB, (p) => p.runningSpeed) +
+      bucketImbalance(tA, tB, (p) => p.ballControl)
+    );
+  }
+
   // ── Multi-phase optimization ──
   // Goal: get score gap as close to 0 as possible (target ≤ 1 pt), while
   // preserving position balance as much as the composition allows.
@@ -465,6 +495,55 @@ export async function buildTeams(
     return iter;
   }
 
+  // ── Attribute-equalization phase ──
+  // Runs AFTER score balancing. Spreads running speed and ball-control levels
+  // (plus position) evenly across the teams using only swaps that:
+  //   • never add an avoid-pair violation, and
+  //   • never push the score gap above target (and never make it worse than it
+  //     already is, for impossible-roster cases that can't reach ≤1 pt).
+  // It strictly reduces the combined distribution+position imbalance, so the
+  // score balance and equal headcount achieved earlier are fully preserved.
+  function combinedImbalance(tA: PlayerEntry[], tB: PlayerEntry[]): number {
+    return (
+      attributeImbalance(tA, tB) +
+      categoryImbalance(tA, tB) +
+      exactPositionImbalance(tA, tB)
+    );
+  }
+  function runEqualizationPhase(targetGap: number): number {
+    let iter = 0;
+    const MAX = 300;
+    while (iter < MAX) {
+      iter++;
+      const curV = countViolations(teamA, teamB);
+      const curG = gap();
+      const curImb = combinedImbalance(teamA, teamB);
+      const cap = Math.max(targetGap, curG); // don't worsen score beyond where it is
+      let bestPair: { a: PlayerEntry; b: PlayerEntry } | null = null;
+      let bestDelta = -1e-9; // require a strict improvement
+      for (const a of teamA) {
+        for (const b of teamB) {
+          if (a.isCaptain || b.isCaptain) continue;
+          const newA = teamA.map((p) => (p === a ? b : p));
+          const newB = teamB.map((p) => (p === b ? a : p));
+          if (countViolations(newA, newB) > curV) continue; // never add violations
+          const newGap = Math.abs(scoreA - a.score + b.score - (scoreB - b.score + a.score));
+          if (newGap > cap + 1e-9) continue; // keep score within budget
+          const delta = combinedImbalance(newA, newB) - curImb;
+          if (delta < bestDelta) { bestDelta = delta; bestPair = { a, b }; }
+        }
+      }
+      if (!bestPair) break;
+      const iA = teamA.indexOf(bestPair.a);
+      const iB = teamB.indexOf(bestPair.b);
+      teamA[iA] = bestPair.b;
+      teamB[iB] = bestPair.a;
+      scoreA = scoreA - bestPair.a.score + bestPair.b.score;
+      scoreB = scoreB - bestPair.b.score + bestPair.a.score;
+    }
+    return iter;
+  }
+
   const TARGET_GAP = 1.0;
   // We escalate to a more permissive phase if EITHER the score gap is still
   // above target OR there is an unresolved avoid-pair violation. A clash
@@ -482,6 +561,9 @@ export async function buildTeams(
   if (notDone()) {
     totalIter += runOptimizationPhase(false, false, TARGET_GAP);
   }
+  // Phase 4: equalize attribute distribution (speed / ball control / position)
+  // without disturbing the score balance or violations achieved above.
+  totalIter += runEqualizationPhase(TARGET_GAP);
 
   return {
     teamA,
@@ -491,5 +573,6 @@ export async function buildTeams(
     difference: Math.round(Math.abs(scoreA - scoreB) * 10) / 10,
     optimizationIterations: totalIter,
     avoidViolations: countViolations(teamA, teamB),
+    attributeImbalance: attributeImbalance(teamA, teamB),
   };
 }

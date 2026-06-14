@@ -19,5 +19,8 @@ export async function POST(req: NextRequest) {
     // Whether the two teams have an equal number of players — purely structural,
     // not a rating. Lets the UI confirm a fair split without revealing strength.
     balanced: r.teamA.length === r.teamB.length || Math.abs(r.teamA.length - r.teamB.length) <= 1,
+    // Aggregate evenness of speed + ball-control spread (0 = perfectly even).
+    // A single count of mismatches — does NOT reveal any individual's rating.
+    attributeSpread: r.attributeImbalance,
   });
 }
