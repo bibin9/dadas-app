@@ -22,5 +22,7 @@ export async function POST(req: NextRequest) {
     // Aggregate evenness of speed + ball-control spread (0 = perfectly even).
     // A single count of mismatches — does NOT reveal any individual's rating.
     attributeSpread: r.attributeImbalance,
+    // Aggregate evenness of positions across teams (0 = perfectly even).
+    positionSpread: r.positionImbalance,
   });
 }

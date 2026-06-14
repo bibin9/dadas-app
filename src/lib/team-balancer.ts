@@ -111,6 +111,8 @@ export interface BuiltTeams {
   avoidViolations: number;
   // Combined speed + ball-control distribution imbalance (0 = perfectly even).
   attributeImbalance: number;
+  // Role-category + exact-position imbalance (0 = positions perfectly even).
+  positionImbalance: number;
 }
 
 // Availability modifier: tired players play 1 full point below their level.
@@ -574,5 +576,6 @@ export async function buildTeams(
     optimizationIterations: totalIter,
     avoidViolations: countViolations(teamA, teamB),
     attributeImbalance: attributeImbalance(teamA, teamB),
+    positionImbalance: categoryImbalance(teamA, teamB) + exactPositionImbalance(teamA, teamB),
   };
 }
