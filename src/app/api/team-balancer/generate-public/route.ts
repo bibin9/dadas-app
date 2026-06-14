@@ -24,5 +24,8 @@ export async function POST(req: NextRequest) {
     attributeSpread: r.attributeImbalance,
     // Aggregate evenness of positions across teams (0 = perfectly even).
     positionSpread: r.positionImbalance,
+    // Confirms the teams are within the 1-point strength rule. A boolean only —
+    // does NOT reveal the actual scores or any individual's rating.
+    withinOnePoint: r.difference <= 1.0001,
   });
 }

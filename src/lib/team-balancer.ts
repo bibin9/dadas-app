@@ -522,7 +522,8 @@ export async function buildTeams(
       const curImb = combinedImbalance(teamA, teamB);
       const cap = Math.max(targetGap, curG); // don't worsen score beyond where it is
       let bestPair: { a: PlayerEntry; b: PlayerEntry } | null = null;
-      let bestDelta = -1e-9; // require a strict improvement
+      let bestDelta = 0;            // must strictly reduce imbalance
+      let bestGap = Infinity;       // tie-break: prefer the tighter score gap
       for (const a of teamA) {
         for (const b of teamB) {
           if (a.isCaptain || b.isCaptain) continue;
@@ -530,9 +531,13 @@ export async function buildTeams(
           const newB = teamB.map((p) => (p === b ? a : p));
           if (countViolations(newA, newB) > curV) continue; // never add violations
           const newGap = Math.abs(scoreA - a.score + b.score - (scoreB - b.score + a.score));
-          if (newGap > cap + 1e-9) continue; // keep score within budget
+          if (newGap > cap + 1e-9) continue; // keep score within budget (≤ 1 pt)
           const delta = combinedImbalance(newA, newB) - curImb;
-          if (delta < bestDelta) { bestDelta = delta; bestPair = { a, b }; }
+          if (delta > -1e-9) continue; // skip swaps that don't improve distribution
+          // Better = bigger distribution gain; tie → smaller resulting score gap.
+          if (delta < bestDelta - 1e-9 || (Math.abs(delta - bestDelta) < 1e-9 && newGap < bestGap - 1e-9)) {
+            bestDelta = delta; bestGap = newGap; bestPair = { a, b };
+          }
         }
       }
       if (!bestPair) break;
