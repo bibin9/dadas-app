@@ -17,6 +17,7 @@ interface PlayerSkill {
   isCaptain: boolean;
   availability: string;
   ballControl: string;
+  runningSpeed: string;
   member: Member;
 }
 
@@ -55,6 +56,8 @@ interface GuestPlayer {
   skillTier: string;
   ageGroup: string;
   position: string;
+  ballControl: string;
+  runningSpeed: string;
 }
 
 const SKILL_TIERS = [
@@ -119,6 +122,12 @@ const BALL_CONTROL_OPTIONS = [
   { value: "verygood", label: "Very Good (+1)" },
 ];
 
+const SPEED_OPTIONS = [
+  { value: "slow", label: "Slow (-0.5)" },
+  { value: "medium", label: "Medium (0)" },
+  { value: "fast", label: "Fast (+0.5)" },
+];
+
 const POSITION_SHORT: Record<string, string> = {
   any: "—",
   goalkeeper: "GK",
@@ -163,7 +172,7 @@ export default function TeamBalancerPage() {
   const [filterTier, setFilterTier] = useState("all");
   const [savingId, setSavingId] = useState<string | null>(null);
   const [editSkills, setEditSkills] = useState<
-    Record<string, { skillTier: string; ageGroup: string; position: string; isCaptain: boolean; availability: string; ballControl: string }>
+    Record<string, { skillTier: string; ageGroup: string; position: string; isCaptain: boolean; availability: string; ballControl: string; runningSpeed: string }>
   >({});
 
   // Generate tab state
@@ -173,6 +182,8 @@ export default function TeamBalancerPage() {
   const [guestTier, setGuestTier] = useState("silver");
   const [guestAge, setGuestAge] = useState("age30to40");
   const [guestPosition, setGuestPosition] = useState("any");
+  const [guestBall, setGuestBall] = useState("ok");
+  const [guestSpeed, setGuestSpeed] = useState("medium");
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState<TeamResult | null>(null);
   const [jerseyA, setJerseyA] = useState(0);
@@ -303,6 +314,7 @@ export default function TeamBalancerPage() {
         isCaptain: edit.isCaptain,
         availability: edit.availability,
         ballControl: edit.ballControl,
+        runningSpeed: edit.runningSpeed,
       }),
     });
     await loadData();
@@ -319,6 +331,7 @@ export default function TeamBalancerPage() {
       isCaptain: s?.isCaptain ?? false,
       availability: s?.availability ?? "fit",
       ballControl: s?.ballControl ?? "ok",
+      runningSpeed: s?.runningSpeed ?? "medium",
     };
   }
 
@@ -378,12 +391,14 @@ export default function TeamBalancerPage() {
 
   function addGuest() {
     if (!guestName.trim()) return;
-    const newGuests = [...guests, { name: guestName.trim(), skillTier: guestTier, ageGroup: guestAge, position: guestPosition }];
+    const newGuests = [...guests, { name: guestName.trim(), skillTier: guestTier, ageGroup: guestAge, position: guestPosition, ballControl: guestBall, runningSpeed: guestSpeed }];
     setGuests(newGuests);
     setGuestName("");
     setGuestTier("silver");
     setGuestAge("age30to40");
     setGuestPosition("any");
+    setGuestBall("ok");
+    setGuestSpeed("medium");
     // Auto-generate with new guest
     doGenerate(selectedIds, newGuests, autoCaptain);
   }
@@ -596,6 +611,26 @@ export default function TeamBalancerPage() {
               >
                 {POSITIONS.map((p) => (
                   <option key={p.value} value={p.value}>{p.label}</option>
+                ))}
+              </select>
+              <select
+                value={guestBall}
+                onChange={(e) => setGuestBall(e.target.value)}
+                className="border rounded-lg px-2 py-2 text-sm bg-white"
+                title="Ball control skill"
+              >
+                {BALL_CONTROL_OPTIONS.map((b) => (
+                  <option key={b.value} value={b.value}>⚽ {b.label}</option>
+                ))}
+              </select>
+              <select
+                value={guestSpeed}
+                onChange={(e) => setGuestSpeed(e.target.value)}
+                className="border rounded-lg px-2 py-2 text-sm bg-white"
+                title="Running speed"
+              >
+                {SPEED_OPTIONS.map((s) => (
+                  <option key={s.value} value={s.value}>🏃 {s.label}</option>
                 ))}
               </select>
               <button
@@ -860,7 +895,8 @@ export default function TeamBalancerPage() {
                   editSkills[m.id].position !== (skills[m.id]?.position ?? "any") ||
                   editSkills[m.id].isCaptain !== (skills[m.id]?.isCaptain ?? false) ||
                   editSkills[m.id].availability !== (skills[m.id]?.availability ?? "fit") ||
-                  editSkills[m.id].ballControl !== (skills[m.id]?.ballControl ?? "ok"));
+                  editSkills[m.id].ballControl !== (skills[m.id]?.ballControl ?? "ok") ||
+                  editSkills[m.id].runningSpeed !== (skills[m.id]?.runningSpeed ?? "medium"));
               return (
                 <div
                   key={m.id}
@@ -921,6 +957,16 @@ export default function TeamBalancerPage() {
                     >
                       {BALL_CONTROL_OPTIONS.map((b) => (
                         <option key={b.value} value={b.value}>⚽ {b.label}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={ev.runningSpeed}
+                      onChange={(e) => updateEdit(m.id, "runningSpeed", e.target.value)}
+                      className="border rounded-lg px-2 py-1.5 text-xs bg-white"
+                      title="Running speed"
+                    >
+                      {SPEED_OPTIONS.map((s) => (
+                        <option key={s.value} value={s.value}>🏃 {s.label}</option>
                       ))}
                     </select>
                     <label className="inline-flex items-center gap-1 px-2 py-1.5 text-xs bg-white border rounded-lg cursor-pointer" title="Captain — algorithm puts one on each team">

@@ -96,6 +96,7 @@ export interface GuestInput {
   position?: string;
   ballControl?: string;
   availability?: string;
+  runningSpeed?: string;
 }
 
 export interface BuiltTeams {
@@ -124,6 +125,13 @@ const BALL_CONTROL_MODIFIERS: Record<string, number> = {
   verygood: 1,
 };
 
+// Running-speed modifier — independent athletic rating, separate from skill.
+const SPEED_MODIFIERS: Record<string, number> = {
+  slow: -0.5,
+  medium: 0,
+  fast: 0.5,
+};
+
 // Special rule: a Silver-tier player who is BOTH over 50 AND tired
 // should be treated as Bronze (effective skill drop from being old + tired).
 function effectiveSkillTier(skillTier: string, ageGroup: string, availability: string): string {
@@ -133,13 +141,14 @@ function effectiveSkillTier(skillTier: string, ageGroup: string, availability: s
   return skillTier;
 }
 
-// Score = base skill + age + position + availability + ball control + recent form
+// Score = base skill + age + position + availability + ball control + speed + recent form
 function calculateScore(
   skillTier: string,
   ageGroup: string,
   position: string,
   availability = "fit",
   ballControl = "ok",
+  runningSpeed = "medium",
   recentFormMod = 0,
 ): number {
   const tier = effectiveSkillTier(skillTier, ageGroup, availability);
@@ -148,7 +157,8 @@ function calculateScore(
   const posMod = POSITION_MODIFIERS[position] ?? 0;
   const availMod = AVAILABILITY_MODIFIERS[availability] ?? 0;
   const bcMod = BALL_CONTROL_MODIFIERS[ballControl] ?? 0;
-  return Math.round((base + ageMod + posMod + availMod + bcMod + recentFormMod) * 10) / 10;
+  const speedMod = SPEED_MODIFIERS[runningSpeed] ?? 0;
+  return Math.round((base + ageMod + posMod + availMod + bcMod + speedMod + recentFormMod) * 10) / 10;
 }
 
 // Core team-building algorithm. Shared by the admin (full data) and public
@@ -201,6 +211,7 @@ export async function buildTeams(
     const ageGroup = normalizeAge(skill?.ageGroup ?? "age30to40");
     const position = skill?.position ?? "any";
     const ballControl = skill?.ballControl ?? "ok";
+    const runningSpeed = skill?.runningSpeed ?? "medium";
     const formMod = recentFormModifier(m.id);
     players.push({
       id: m.id,
@@ -208,7 +219,7 @@ export async function buildTeams(
       skillTier,
       ageGroup,
       position,
-      score: calculateScore(skillTier, ageGroup, position, availability, ballControl, formMod),
+      score: calculateScore(skillTier, ageGroup, position, availability, ballControl, runningSpeed, formMod),
       isGuest: false,
       isCaptain: !!skill?.isCaptain,
     });
@@ -222,13 +233,14 @@ export async function buildTeams(
       const position = g.position || "any";
       const ballControl = g.ballControl || "ok";
       const availability = g.availability || "fit";
+      const runningSpeed = g.runningSpeed || "medium";
       players.push({
         id: `guest-${Date.now()}-${Math.random().toString(36).slice(2)}`,
         name: g.name,
         skillTier,
         ageGroup,
         position,
-        score: calculateScore(skillTier, ageGroup, position, availability, ballControl),
+        score: calculateScore(skillTier, ageGroup, position, availability, ballControl, runningSpeed),
         isGuest: true,
         isCaptain: false,
       });

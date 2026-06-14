@@ -202,6 +202,7 @@ const migrations = [
   `ALTER TABLE PlayerSkill ADD COLUMN isCaptain INTEGER NOT NULL DEFAULT 0`,
   `ALTER TABLE PlayerSkill ADD COLUMN availability TEXT NOT NULL DEFAULT 'fit'`,
   `ALTER TABLE PlayerSkill ADD COLUMN ballControl TEXT NOT NULL DEFAULT 'ok'`,
+  `ALTER TABLE PlayerSkill ADD COLUMN runningSpeed TEXT NOT NULL DEFAULT 'medium'`,
 ];
 for (const sql of migrations) {
   try { await db.execute(sql); } catch { /* column already exists */ }

@@ -12,7 +12,6 @@ interface Member {
 interface PlayerSkill {
   memberId: string;
   isCaptain: boolean;
-  availability: string;
 }
 
 interface PlayerEntry {
@@ -32,6 +31,8 @@ interface GuestPlayer {
   skillTier: string;
   ageGroup: string;
   position: string;
+  ballControl: string;
+  runningSpeed: string;
 }
 
 const SKILL_TIERS = [
@@ -41,6 +42,20 @@ const SKILL_TIERS = [
   { value: "silver", label: "Silver", color: "bg-gray-400 text-white" },
   { value: "bronze", label: "Bronze", color: "bg-orange-600 text-white" },
   { value: "starter", label: "Starter", color: "bg-green-600 text-white" },
+];
+
+const BALL_CONTROL_OPTIONS = [
+  { value: "no", label: "No (-0.75)" },
+  { value: "less", label: "Less (-0.5)" },
+  { value: "ok", label: "Ok (0)" },
+  { value: "good", label: "Good (+0.5)" },
+  { value: "verygood", label: "Very Good (+1)" },
+];
+
+const SPEED_OPTIONS = [
+  { value: "slow", label: "Slow (-0.5)" },
+  { value: "medium", label: "Medium (0)" },
+  { value: "fast", label: "Fast (+0.5)" },
 ];
 
 const AGE_GROUPS = [
@@ -108,6 +123,8 @@ export default function PublicTeamsPage() {
   const [guestTier, setGuestTier] = useState("silver");
   const [guestAge, setGuestAge] = useState("age30to40");
   const [guestPosition, setGuestPosition] = useState("any");
+  const [guestBall, setGuestBall] = useState("ok");
+  const [guestSpeed, setGuestSpeed] = useState("medium");
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState<TeamResult | null>(null);
   const [jerseyA, setJerseyA] = useState(0);
@@ -175,12 +192,14 @@ export default function PublicTeamsPage() {
 
   function addGuest() {
     if (!guestName.trim()) return;
-    const newGuests = [...guests, { name: guestName.trim(), skillTier: guestTier, ageGroup: guestAge, position: guestPosition }];
+    const newGuests = [...guests, { name: guestName.trim(), skillTier: guestTier, ageGroup: guestAge, position: guestPosition, ballControl: guestBall, runningSpeed: guestSpeed }];
     setGuests(newGuests);
     setGuestName("");
     setGuestTier("silver");
     setGuestAge("age30to40");
     setGuestPosition("any");
+    setGuestBall("ok");
+    setGuestSpeed("medium");
     doGenerate(selectedIds, newGuests, autoCaptain);
   }
 
@@ -310,23 +329,18 @@ export default function PublicTeamsPage() {
             {sortedMembers.map((m) => {
               const s = skills[m.id];
               const isSelected = selectedIds.has(m.id);
-              const isInjured = s?.availability === "injured";
-              const isTired = s?.availability === "tired";
               const isCaptain = !!s?.isCaptain;
               return (
                 <button
                   key={m.id}
                   onClick={() => togglePlayer(m.id)}
-                  title={isInjured ? "Injured — will be excluded from team generation" : undefined}
                   className={`flex flex-col items-center gap-1 p-3 rounded-xl text-center transition-all relative ${
                     isSelected
                       ? "bg-blue-50 border-2 border-blue-400 shadow-sm"
                       : "bg-gray-50 border-2 border-transparent hover:border-gray-200"
-                  } ${isInjured ? "opacity-60" : ""}`}
+                  }`}
                 >
                   {isCaptain && <span className="absolute top-1 right-1 text-[10px] bg-amber-200 text-amber-900 font-bold px-1 rounded">©</span>}
-                  {isInjured && <span className="absolute top-1 left-1 text-[10px]">🚑</span>}
-                  {isTired && !isInjured && <span className="absolute top-1 left-1 text-[10px]">😓</span>}
                   <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
                     isSelected ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-500"
                   }`}>
@@ -361,6 +375,12 @@ export default function PublicTeamsPage() {
             </select>
             <select value={guestPosition} onChange={(e) => setGuestPosition(e.target.value)} className="border rounded-lg px-2 py-2 text-sm bg-white" title="Position">
               {POSITIONS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+            </select>
+            <select value={guestBall} onChange={(e) => setGuestBall(e.target.value)} className="border rounded-lg px-2 py-2 text-sm bg-white" title="Ball control">
+              {BALL_CONTROL_OPTIONS.map((b) => <option key={b.value} value={b.value}>⚽ {b.label}</option>)}
+            </select>
+            <select value={guestSpeed} onChange={(e) => setGuestSpeed(e.target.value)} className="border rounded-lg px-2 py-2 text-sm bg-white" title="Running speed">
+              {SPEED_OPTIONS.map((s) => <option key={s.value} value={s.value}>🏃 {s.label}</option>)}
             </select>
             <button
               onClick={addGuest}

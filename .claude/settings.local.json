@@ -173,7 +173,13 @@
       "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" \"https://dadas-app.vercel.app/api/team-balancer/skills\")",
       "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" \"https://dadas-app.vercel.app/api/team-balancer/avoid-pairs\")",
       "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" \"https://dadas-app.vercel.app/team-balancer\")",
-      "Bash(TURSO_DATABASE_URL=\"libsql://dadas-app-bibin.aws-ap-south-1.turso.io\" TURSO_AUTH_TOKEN=\"eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3NzYwMjQwNjUsImlkIjoiMDE5ZDdjOGMtNzAwMS03Mjg5LTk3MzItMzEwOTJjMTQ3ZTBmIiwicmlkIjoiNmFjYjM4NDgtZWY0My00YzFhLThiODAtMTA2NWY0MWE5ZWU2In0.IZ-AsANLB71CDlve4qa6onFC_vGzq3qDIRSaPnsG760h-B7uMbUk9_IOG2jb3pE_J4xxq_a7izT1Rt7lm08HDg\" node check-avoid.mjs)"
+      "Bash(TURSO_DATABASE_URL=\"libsql://dadas-app-bibin.aws-ap-south-1.turso.io\" TURSO_AUTH_TOKEN=\"eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3NzYwMjQwNjUsImlkIjoiMDE5ZDdjOGMtNzAwMS03Mjg5LTk3MzItMzEwOTJjMTQ3ZTBmIiwicmlkIjoiNmFjYjM4NDgtZWY0My00YzFhLThiODAtMTA2NWY0MWE5ZWU2In0.IZ-AsANLB71CDlve4qa6onFC_vGzq3qDIRSaPnsG760h-B7uMbUk9_IOG2jb3pE_J4xxq_a7izT1Rt7lm08HDg\" node check-avoid.mjs)",
+      "Bash(curl -s https://dadas-app.vercel.app/api/team-balancer/public-data)",
+      "Bash(curl -s -o /dev/null -w 'HTTP %{http_code}\\\\n' -X POST https://dadas-app.vercel.app/api/team-balancer/generate -H 'Content-Type: application/json' -d '{\"playerIds\":[],\"guestPlayers\":[],\"autoCaptain\":true}')",
+      "Bash(curl -s -o /dev/null -w 'HTTP %{http_code}\\\\n' https://dadas-app.vercel.app/teams)",
+      "Bash(curl -s -o /dev/null -w 'HTTP %{http_code}\\\\n' -X POST https://dadas-app.vercel.app/api/team-balancer/generate-public -H 'Content-Type: application/json' -d '{\"playerIds\":[],\"guestPlayers\":[],\"autoCaptain\":true}')",
+      "Bash(TURSO_DATABASE_URL=\"libsql://dadas-app-bibin.aws-ap-south-1.turso.io\" TURSO_AUTH_TOKEN=\"eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3NzYwMjQwNjUsImlkIjoiMDE5ZDdjOGMtNzAwMS03Mjg5LTk3MzItMzEwOTJjMTQ3ZTBmIiwicmlkIjoiNmFjYjM4NDgtZWY0My00YzFhLThiODAtMTA2NWY0MWE5ZWU2In0.IZ-AsANLB71CDlve4qa6onFC_vGzq3qDIRSaPnsG760h-B7uMbUk9_IOG2jb3pE_J4xxq_a7izT1Rt7lm08HDg\" node snapshot-skills.mjs)",
+      "Bash(TURSO_DATABASE_URL=\"libsql://dadas-app-bibin.aws-ap-south-1.turso.io\" TURSO_AUTH_TOKEN=\"eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3NzYwMjQwNjUsImlkIjoiMDE5ZDdjOGMtNzAwMS03Mjg5LTk3MzItMzEwOTJjMTQ3ZTBmIiwicmlkIjoiNmFjYjM4NDgtZWY0My00YzFhLThiODAtMTA2NWY0MWE5ZWU2In0.IZ-AsANLB71CDlve4qa6onFC_vGzq3qDIRSaPnsG760h-B7uMbUk9_IOG2jb3pE_J4xxq_a7izT1Rt7lm08HDg\" node migrate-speed.mjs)"
     ]
   }
 }
