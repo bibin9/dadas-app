@@ -228,7 +228,7 @@ export async function buildTeams(
       ballControl,
       runningSpeed,
       score: calculateScore(skillTier, ageGroup, position, availability, ballControl, runningSpeed, formMod),
-      isGuest: false,
+      isGuest: !!m.isGuest, // saved guests are members flagged isGuest
       isCaptain: !!skill?.isCaptain,
     });
   }

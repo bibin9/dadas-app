@@ -6,6 +6,7 @@ interface Member {
   id: string;
   name: string;
   active: boolean;
+  isGuest?: boolean;
 }
 
 interface PlayerSkill {
@@ -178,12 +179,14 @@ export default function TeamBalancerPage() {
   // Generate tab state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [guests, setGuests] = useState<GuestPlayer[]>([]);
+  const [savedGuests, setSavedGuests] = useState<Member[]>([]);
   const [guestName, setGuestName] = useState("");
   const [guestTier, setGuestTier] = useState("silver");
   const [guestAge, setGuestAge] = useState("age30to40");
   const [guestPosition, setGuestPosition] = useState("any");
   const [guestBall, setGuestBall] = useState("ok");
   const [guestSpeed, setGuestSpeed] = useState("medium");
+  const [guestSave, setGuestSave] = useState(true); // remember this guest for next time
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState<TeamResult | null>(null);
   const [jerseyA, setJerseyA] = useState(0);
@@ -289,7 +292,8 @@ export default function TeamBalancerPage() {
     const membersData: Member[] = await membersRes.json();
     const skillsData: PlayerSkill[] = await skillsRes.json();
 
-    setMembers(membersData.filter((m) => m.active));
+    setMembers(membersData.filter((m) => m.active && !m.isGuest));
+    setSavedGuests(membersData.filter((m) => m.isGuest));
     const skillMap: Record<string, PlayerSkill> = {};
     skillsData.forEach((s) => {
       skillMap[s.memberId] = s;
@@ -389,18 +393,54 @@ export default function TeamBalancerPage() {
     doGenerate(next, guests, autoCaptain);
   }
 
-  function addGuest() {
+  async function addGuest() {
     if (!guestName.trim()) return;
-    const newGuests = [...guests, { name: guestName.trim(), skillTier: guestTier, ageGroup: guestAge, position: guestPosition, ballControl: guestBall, runningSpeed: guestSpeed }];
+    const payload = { name: guestName.trim(), skillTier: guestTier, ageGroup: guestAge, position: guestPosition, ballControl: guestBall, runningSpeed: guestSpeed };
+
+    if (guestSave) {
+      // Persist as a reusable saved guest (member isGuest=true), then select it.
+      const res = await fetch("/api/team-balancer/save-guest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        const member: Member = await res.json();
+        await loadData();
+        const next = new Set(selectedIds);
+        next.add(member.id);
+        setSelectedIds(next);
+        resetGuestForm();
+        doGenerate(next, guests, autoCaptain);
+        return;
+      }
+      // If saving failed, fall through to a one-off guest so the user isn't blocked.
+    }
+
+    const newGuests = [...guests, payload];
     setGuests(newGuests);
+    resetGuestForm();
+    // Auto-generate with new guest
+    doGenerate(selectedIds, newGuests, autoCaptain);
+  }
+
+  function resetGuestForm() {
     setGuestName("");
     setGuestTier("silver");
     setGuestAge("age30to40");
     setGuestPosition("any");
     setGuestBall("ok");
     setGuestSpeed("medium");
-    // Auto-generate with new guest
-    doGenerate(selectedIds, newGuests, autoCaptain);
+  }
+
+  async function deleteSavedGuest(id: string) {
+    if (!confirm("Remove this saved guest permanently?")) return;
+    await fetch(`/api/members/${id}`, { method: "DELETE" });
+    const next = new Set(selectedIds);
+    next.delete(id);
+    setSelectedIds(next);
+    await loadData();
+    doGenerate(next, guests, autoCaptain);
   }
 
   function removeGuest(i: number) {
@@ -641,6 +681,38 @@ export default function TeamBalancerPage() {
                 Add Guest
               </button>
             </div>
+            <label className="flex items-center gap-2 mt-2 text-xs text-gray-600 cursor-pointer select-none">
+              <input type="checkbox" checked={guestSave} onChange={(e) => setGuestSave(e.target.checked)} className="rounded text-blue-600" />
+              💾 Remember this guest for next time (saved to a reusable list, not added to members/finances)
+            </label>
+
+            {/* Saved (reusable) guests — tap to include in this match */}
+            {savedGuests.length > 0 && (
+              <div className="mt-3 border-t border-gray-100 pt-3">
+                <h4 className="text-xs font-semibold text-gray-500 mb-2">⭐ Saved guests — tap to add</h4>
+                <div className="flex flex-wrap gap-2">
+                  {[...savedGuests].sort((a, b) => a.name.localeCompare(b.name)).map((g) => {
+                    const sel = selectedIds.has(g.id);
+                    return (
+                      <span key={g.id}
+                        className={`inline-flex items-center gap-1.5 rounded-full pl-3 pr-1.5 py-1 text-sm border-2 transition-colors ${
+                          sel ? "bg-blue-50 border-blue-400" : "bg-gray-50 border-transparent hover:border-gray-200"
+                        }`}>
+                        <button onClick={() => togglePlayer(g.id)} className="flex items-center gap-1.5">
+                          <span className={`text-xs ${sel ? "text-blue-700" : "text-gray-400"}`}>{sel ? "✓" : "+"}</span>
+                          <span className="font-medium text-gray-700">{g.name}</span>
+                          {getSkillBadge(skills[g.id]?.skillTier ?? "silver")}
+                        </button>
+                        <button onClick={() => deleteSavedGuest(g.id)} title="Delete saved guest"
+                          className="w-5 h-5 rounded-full bg-red-100 text-red-600 hover:bg-red-200 flex items-center justify-center text-xs font-bold ml-1">
+                          ×
+                        </button>
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             {guests.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-2">
                 {guests.map((g, i) => (
