@@ -7,7 +7,7 @@ import { prisma } from "@/lib/db";
 // skill tier, position, ball control, running speed, age group, availability/
 // fitness or any score — members must never see how anyone is rated.
 export async function GET() {
-  const [members, skills] = await Promise.all([
+  const [members, skills, guests] = await Promise.all([
     prisma.member.findMany({
       where: { active: true },
       select: { id: true, name: true, active: true },
@@ -15,6 +15,12 @@ export async function GET() {
     prisma.playerSkill.findMany({
       select: { memberId: true, isCaptain: true },
     }),
+    // Saved (reusable) guests — names only, so they can be tapped into a match.
+    // No ratings exposed; the server scores them when teams are built.
+    prisma.member.findMany({
+      where: { isGuest: true },
+      select: { id: true, name: true },
+    }),
   ]);
-  return NextResponse.json({ members, skills });
+  return NextResponse.json({ members, skills, guests });
 }

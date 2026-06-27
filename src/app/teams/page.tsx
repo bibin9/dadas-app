@@ -119,6 +119,7 @@ export default function PublicTeamsPage() {
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [guests, setGuests] = useState<GuestPlayer[]>([]);
+  const [savedGuests, setSavedGuests] = useState<{ id: string; name: string }[]>([]);
   const [guestName, setGuestName] = useState("");
   const [guestTier, setGuestTier] = useState("silver");
   const [guestAge, setGuestAge] = useState("age30to40");
@@ -141,6 +142,7 @@ export default function PublicTeamsPage() {
     const res = await fetch("/api/team-balancer/public-data");
     const data = await res.json();
     setMembers((data.members as Member[]).filter((m) => m.active));
+    setSavedGuests((data.guests as { id: string; name: string }[]) || []);
     const skillMap: Record<string, PlayerSkill> = {};
     (data.skills as PlayerSkill[]).forEach((s) => { skillMap[s.memberId] = s; });
     setSkills(skillMap);
@@ -407,6 +409,30 @@ export default function PublicTeamsPage() {
                   >×</button>
                 </span>
               ))}
+            </div>
+          )}
+
+          {/* Saved (reusable) guests — tap to include in this match */}
+          {savedGuests.length > 0 && (
+            <div className="mt-3 border-t border-gray-100 pt-3">
+              <h4 className="text-xs font-semibold text-gray-500 mb-2">⭐ Saved guests — tap to add</h4>
+              <div className="flex flex-wrap gap-2">
+                {[...savedGuests].sort((a, b) => a.name.localeCompare(b.name)).map((g) => {
+                  const sel = selectedIds.has(g.id);
+                  return (
+                    <button
+                      key={g.id}
+                      onClick={() => togglePlayer(g.id)}
+                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm border-2 transition-colors ${
+                        sel ? "bg-blue-50 border-blue-400" : "bg-gray-50 border-transparent hover:border-gray-200"
+                      }`}
+                    >
+                      <span className={`text-xs ${sel ? "text-blue-700" : "text-gray-400"}`}>{sel ? "✓" : "+"}</span>
+                      <span className="font-medium text-gray-700">{g.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>
