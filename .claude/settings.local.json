@@ -190,7 +190,8 @@
       "Bash(TURSO_DATABASE_URL=\"libsql://dadas-app-bibin.aws-ap-south-1.turso.io\" TURSO_AUTH_TOKEN=\"eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3NzYwMjQwNjUsImlkIjoiMDE5ZDdjOGMtNzAwMS03Mjg5LTk3MzItMzEwOTJjMTQ3ZTBmIiwicmlkIjoiNmFjYjM4NDgtZWY0My00YzFhLThiODAtMTA2NWY0MWE5ZWU2In0.IZ-AsANLB71CDlve4qa6onFC_vGzq3qDIRSaPnsG760h-B7uMbUk9_IOG2jb3pE_J4xxq_a7izT1Rt7lm08HDg\" node verify-pubguest.mjs)",
       "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\([{'id':m['id'],'name':m['name']} for m in d['members']] + [{'id':g['id'],'name':g['name']} for g in d.get\\('guests',[]\\)]\\)\\)\")",
       "Bash(python -c \"import json; d=json.load\\(open\\(r'C:\\\\Users\\\\Internet\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Bibin-dadas-app\\\\b13a07bf-f205-490f-aab3-5d688e16c264\\\\scratchpad\\\\pool.json'\\)\\); print\\(len\\(d\\), 'candidates'\\); print\\(sorted\\(x['name'] for x in d\\)[:15]\\)\")",
-      "Bash(node --experimental-strip-types test-match.mjs)"
+      "Bash(node --experimental-strip-types test-match.mjs)",
+      "Bash(curl -s https://dadas-app.vercel.app/teams)"
     ]
   }
 }

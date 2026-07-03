@@ -94,6 +94,17 @@ function allowedDistance(len: number): number {
   return 3;
 }
 
+// Nickname stem: reduces a name to its core so pet forms match the real name.
+//   "nikky"/"nikki"/"nikhy" → "nik" · "nikhil" → "nikil"
+// Steps: collapse doubled letters, drop the optional "h" common in Indian
+// name spellings, then strip trailing vowel-ish endings (-y, -i, -ee, ...).
+function nickStem(s: string): string {
+  let t = s.replace(/(.)\1+/g, "$1");     // nikki → niki, nikky → niky
+  t = t[0] + t.slice(1).replace(/h/g, ""); // nikhil → nikil (keep leading h)
+  t = t.replace(/[aeiouy]+$/g, "");        // niki/niky → nik
+  return t;
+}
+
 // Best fuzzy score of `input` against a candidate's full name and each token
 // (so "Sudheesh" can match "Sudheesh Shinoj" via its first token).
 // Fuzzy matches REQUIRE the same first letter — misspellings almost never hit
@@ -115,6 +126,21 @@ function scoreAgainst(input: string, candidateNorm: string): number {
   // Prefix bonus: "sudheesh s" vs "sudheesh shinoj"
   if (candidateNorm[0] === input[0] && (candidateNorm.startsWith(input) || input.startsWith(candidateNorm))) {
     best = Math.min(best, Math.abs(candidateNorm.length - input.length) > 3 ? best : 1);
+  }
+  // Nickname rule: "Nikky"/"Nikki"/"Nikhy"/"Nik" → Nikhil. The input's stem
+  // must be a prefix (≥3 chars) of the candidate's stem, first letters equal.
+  // Counts as exact-strength (0) so it passes even the strict short-name
+  // limit; if two candidates both stem-match, the tie leaves it unmatched.
+  if (!input.includes(" ")) {
+    const inStem = nickStem(input);
+    if (inStem.length >= 3) {
+      for (const t of candidateNorm.split(" ")) {
+        if (t[0] === input[0] && nickStem(t).startsWith(inStem)) {
+          best = 0;
+          break;
+        }
+      }
+    }
   }
   return best;
 }
