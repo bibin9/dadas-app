@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import PasteTeamList from "@/components/PasteTeamList";
 
 interface Member {
   id: string;
@@ -573,6 +574,16 @@ export default function TeamBalancerPage() {
               </label>
             );
           })()}
+
+          {/* Paste WhatsApp list → auto-select matched players */}
+          <PasteTeamList
+            candidates={[...members, ...savedGuests].map((m) => ({ id: m.id, name: m.name }))}
+            onApply={(ids) => {
+              const next = new Set(ids);
+              setSelectedIds(next);
+              doGenerate(next, guests, autoCaptain);
+            }}
+          />
 
           {/* Player selection grid (alphabetical) */}
           <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mb-4">
