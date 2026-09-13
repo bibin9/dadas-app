@@ -279,6 +279,27 @@ export async function buildTeams(
     }
   }
 
+  // autoCaptain mutates isCaptain, so remember the real flags to restore
+  // before each attempt (otherwise attempt 2 inherits attempt 1's choices).
+  const originalCaptains = new Map(players.map((p) => [p.id, p.isCaptain]));
+
+  interface Attempt {
+    teamA: PlayerEntry[];
+    teamB: PlayerEntry[];
+    scoreA: number;
+    scoreB: number;
+    gap: number;
+    violations: number;
+    repeated: number;
+    attrImb: number;
+    posImb: number;
+    iterations: number;
+  }
+
+  // One full build: shuffle → distribute → optimise. Called several times so we
+  // can pick the freshest of many equally-balanced solutions.
+  function runAttempt(): Attempt {
+  for (const p of players) p.isCaptain = originalCaptains.get(p.id) ?? false;
   // Shuffle for run-to-run variety, then stable-sort by score desc
   for (let i = players.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -331,8 +352,10 @@ export async function buildTeams(
     const posB = posCountB[cat] || 0;
     if (posA < posB) { pushA(p); return; }
     if (posB < posA) { pushB(p); return; }
-    // Tier 4: lower-scoring team
-    if (scoreA <= scoreB) pushA(p); else pushB(p);
+    // Tier 4: lower-scoring team (random when perfectly level, for variety)
+    if (Math.abs(scoreA - scoreB) < 1e-9) {
+      if (Math.random() < 0.5) pushA(p); else pushB(p);
+    } else if (scoreA < scoreB) pushA(p); else pushB(p);
   }
 
   // Auto-pick captains from the pool of flagged captains ONLY.
@@ -492,6 +515,7 @@ export async function buildTeams(
       let bestPair: { a: PlayerEntry; b: PlayerEntry } | null = null;
       let bestVDelta = 0;
       let bestGDelta = 0;
+      let tieCount = 0;
       const curV = countViolations(teamA, teamB);
       const curG = gap();
       const curImb = categoryImbalance(teamA, teamB);
@@ -516,10 +540,21 @@ export async function buildTeams(
           const isBetter =
             vDelta < bestVDelta - 0.0001 ||
             (Math.abs(vDelta - bestVDelta) < 0.0001 && gDelta < bestGDelta - 0.0001);
+          const isTie =
+            bestPair !== null &&
+            Math.abs(vDelta - bestVDelta) < 0.0001 &&
+            Math.abs(gDelta - bestGDelta) < 0.0001;
           if (isBetter && (vDelta < 0 || (vDelta === 0 && gDelta < 0))) {
             bestVDelta = vDelta;
             bestGDelta = gDelta;
             bestPair = { a, b };
+            tieCount = 1;
+          } else if (isTie && (vDelta < 0 || (vDelta === 0 && gDelta < 0))) {
+            // Equally good swap — reservoir-sample so different runs explore
+            // different (equally balanced) solutions instead of all
+            // converging on the identical line-up every week.
+            tieCount++;
+            if (Math.random() < 1 / tieCount) bestPair = { a, b };
           }
         }
       }
@@ -542,16 +577,16 @@ export async function buildTeams(
   //     already is, for impossible-roster cases that can't reach ≤1 pt).
   // It strictly reduces the combined distribution+position imbalance, so the
   // score balance and equal headcount achieved earlier are fully preserved.
-  // Weight on repeated teammate pairings. Each repeat costs the same as one
-  // attribute/position mismatch, so the optimizer trades them off naturally
-  // instead of wrecking the spread just to shuffle people around.
-  const REPEAT_WEIGHT = 1;
+  // Pure balance measure — positions + speed + ball control only. Repeat
+  // avoidance is deliberately NOT mixed in here: a balanced team with even
+  // positions and points is the first priority, so nothing may be traded
+  // away for variety. Freshness is handled afterwards, for free, in
+  // runFreshnessPhase below.
   function combinedImbalance(tA: PlayerEntry[], tB: PlayerEntry[]): number {
     return (
       attributeImbalance(tA, tB) +
       categoryImbalance(tA, tB) +
-      exactPositionImbalance(tA, tB) +
-      REPEAT_WEIGHT * repeatPairs(tA, tB)
+      exactPositionImbalance(tA, tB)
     );
   }
   function runEqualizationPhase(targetGap: number): number {
@@ -566,6 +601,7 @@ export async function buildTeams(
       let bestPair: { a: PlayerEntry; b: PlayerEntry } | null = null;
       let bestDelta = 0;            // must strictly reduce imbalance
       let bestGap = Infinity;       // tie-break: prefer the tighter score gap
+      let tieCount = 0;
       for (const a of teamA) {
         for (const b of teamB) {
           if (a.isCaptain || b.isCaptain) continue;
@@ -578,11 +614,69 @@ export async function buildTeams(
           if (delta > -1e-9) continue; // skip swaps that don't improve distribution
           // Better = bigger distribution gain; tie → smaller resulting score gap.
           if (delta < bestDelta - 1e-9 || (Math.abs(delta - bestDelta) < 1e-9 && newGap < bestGap - 1e-9)) {
-            bestDelta = delta; bestGap = newGap; bestPair = { a, b };
+            bestDelta = delta; bestGap = newGap; bestPair = { a, b }; tieCount = 1;
+          } else if (bestPair && Math.abs(delta - bestDelta) < 1e-9 && Math.abs(newGap - bestGap) < 1e-9) {
+            // Equally good — sample randomly so runs explore different
+            // equally-balanced line-ups rather than always the same one.
+            tieCount++;
+            if (Math.random() < 1 / tieCount) bestPair = { a, b };
           }
         }
       }
       if (!bestPair) break;
+      const iA = teamA.indexOf(bestPair.a);
+      const iB = teamB.indexOf(bestPair.b);
+      teamA[iA] = bestPair.b;
+      teamB[iB] = bestPair.a;
+      scoreA = scoreA - bestPair.a.score + bestPair.b.score;
+      scoreB = scoreB - bestPair.b.score + bestPair.a.score;
+    }
+    return iter;
+  }
+
+  // ── Freshness phase (runs last, never costs balance) ──
+  // Breaks up teammate pairings repeated from the last 2 shared sheets, but
+  // ONLY via swaps that keep the score gap within budget, keep avoid-pair
+  // violations no worse, and leave the position/attribute spread EQUAL OR
+  // BETTER. If no such free swap exists, teams are left exactly as balanced
+  // as they were — balance always wins over variety.
+  function runFreshnessPhase(targetGap: number): number {
+    if (previousTeammatePairs.size === 0) return 0;
+    let iter = 0;
+    const MAX = 200;
+    while (iter < MAX) {
+      iter++;
+      const curV = countViolations(teamA, teamB);
+      const curG = gap();
+      // Guard on what actually matters for a fair match: the same number of
+      // keepers/defenders/midfielders/forwards, and an even spread of speed
+      // and ball control. Exact-role parity (one LB each, one CDM each) is
+      // deliberately NOT guarded here — with singleton roles it pins the
+      // line-up to a single split and would block all variety.
+      const balanceGuard = (tA: PlayerEntry[], tB: PlayerEntry[]) =>
+        categoryImbalance(tA, tB) + attributeImbalance(tA, tB);
+      const curImb = balanceGuard(teamA, teamB);
+      const curRep = repeatPairs(teamA, teamB);
+      const cap = Math.max(targetGap, curG);
+      let bestPair: { a: PlayerEntry; b: PlayerEntry } | null = null;
+      let bestRep = curRep;
+      let bestGap = Infinity;
+      for (const a of teamA) {
+        for (const b of teamB) {
+          if (a.isCaptain || b.isCaptain) continue;
+          const newA = teamA.map((p) => (p === a ? b : p));
+          const newB = teamB.map((p) => (p === b ? a : p));
+          if (countViolations(newA, newB) > curV) continue;      // no new clashes
+          if (balanceGuard(newA, newB) > curImb) continue;        // balance must not worsen
+          const newGap = Math.abs(scoreA - a.score + b.score - (scoreB - b.score + a.score));
+          if (newGap > cap + 1e-9) continue;                      // stay within the point rule
+          const rep = repeatPairs(newA, newB);
+          if (rep < bestRep || (rep === bestRep && bestPair && newGap < bestGap - 1e-9)) {
+            bestRep = rep; bestGap = newGap; bestPair = { a, b };
+          }
+        }
+      }
+      if (!bestPair || bestRep >= curRep) break;
       const iA = teamA.indexOf(bestPair.a);
       const iB = teamB.indexOf(bestPair.b);
       teamA[iA] = bestPair.b;
@@ -613,18 +707,68 @@ export async function buildTeams(
   // Phase 4: equalize attribute distribution (speed / ball control / position)
   // without disturbing the score balance or violations achieved above.
   totalIter += runEqualizationPhase(TARGET_GAP);
+  // Phase 5: break up repeated pairings — only where it costs no balance.
+  totalIter += runFreshnessPhase(TARGET_GAP);
 
   return {
-    teamA,
-    teamB,
-    scoreA: Math.round(scoreA * 10) / 10,
-    scoreB: Math.round(scoreB * 10) / 10,
-    difference: Math.round(Math.abs(scoreA - scoreB) * 10) / 10,
-    optimizationIterations: totalIter,
-    avoidViolations: countViolations(teamA, teamB),
-    attributeImbalance: attributeImbalance(teamA, teamB),
-    positionImbalance: categoryImbalance(teamA, teamB) + exactPositionImbalance(teamA, teamB),
-    repeatedPairs: repeatPairs(teamA, teamB),
+    teamA: [...teamA],
+    teamB: [...teamB],
+    scoreA,
+    scoreB,
+    gap: gap(),
+    violations: countViolations(teamA, teamB),
+    repeated: repeatPairs(teamA, teamB),
+    attrImb: attributeImbalance(teamA, teamB),
+    posImb: categoryImbalance(teamA, teamB) + exactPositionImbalance(teamA, teamB),
+    iterations: totalIter,
+  };
+  } // end runAttempt
+
+  // ── Multi-restart selection ──
+  // A single run converges to one balanced split and stays there, so the same
+  // faces keep ending up together. Instead we build several candidates (each
+  // with its own shuffle) and pick the FRESHEST one that still satisfies the
+  // hard rules. Variety is chosen only among already-valid line-ups, so equal
+  // size and the ≤1 point gap are never traded away for it.
+  const TARGET = 1.0;
+  const RESTARTS = previousTeammatePairs.size > 0 ? 14 : 4;
+  const candidates: Attempt[] = [];
+  for (let i = 0; i < RESTARTS; i++) candidates.push(runAttempt());
+
+  function better(x: Attempt, y: Attempt): boolean {
+    // 1) fewer avoid-pair violations
+    if (x.violations !== y.violations) return x.violations < y.violations;
+    // 2) meeting the ≤1 point rule beats not meeting it
+    const xOk = x.gap <= TARGET + 1e-9;
+    const yOk = y.gap <= TARGET + 1e-9;
+    if (xOk !== yOk) return xOk;
+    // 3) if neither can meet it, the tighter gap wins
+    if (!xOk && Math.abs(x.gap - y.gap) > 1e-9) return x.gap < y.gap;
+    // 4) both valid → evenest spread of positions / speed / ball control.
+    //    Balance is the first preference, so it outranks freshness.
+    const xi = x.attrImb + x.posImb;
+    const yi = y.attrImb + y.posImb;
+    if (xi !== yi) return xi < yi;
+    // 5) only among equally-balanced line-ups: fewest repeated pairings
+    if (x.repeated !== y.repeated) return x.repeated < y.repeated;
+    // 6) finally the tighter score gap
+    return x.gap < y.gap;
+  }
+
+  let best = candidates[0];
+  for (const c of candidates) if (better(c, best)) best = c;
+
+  return {
+    teamA: best.teamA,
+    teamB: best.teamB,
+    scoreA: Math.round(best.scoreA * 10) / 10,
+    scoreB: Math.round(best.scoreB * 10) / 10,
+    difference: Math.round(best.gap * 10) / 10,
+    optimizationIterations: best.iterations,
+    avoidViolations: best.violations,
+    attributeImbalance: best.attrImb,
+    positionImbalance: best.posImb,
+    repeatedPairs: best.repeated,
     repeatablePairs: previousTeammatePairs.size,
   };
 }

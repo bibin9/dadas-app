@@ -217,7 +217,14 @@
       "Bash(rm -f snap-sheets.mjs)",
       "Bash(npm run *)",
       "Bash(git add *)",
-      "Bash(npx vercel *)"
+      "Bash(npx vercel *)",
+      "Bash(DATABASE_URL=\"file:./dev.db\" npx prisma db push --schema=prisma/schema.prisma --skip-generate --accept-data-loss)",
+      "Bash(npx tsx *)",
+      "Bash(npx esbuild *)",
+      "Bash(node repeat-test.run.mjs)",
+      "Bash(npx tsc *)",
+      "Bash(node diag-test.run.mjs)",
+      "Bash(node pos-check.run.mjs)"
     ]
   }
 }
