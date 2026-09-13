@@ -51,6 +51,8 @@ interface TeamResult {
   scoreB: number;
   difference: number;
   avoidViolations?: number;
+  repeatedPairs?: number;
+  repeatablePairs?: number;
 }
 
 interface GuestPlayer {
@@ -195,6 +197,7 @@ export default function TeamBalancerPage() {
   // Player picked for swap. Format "A:id" or "B:id". Click another from the
   // OPPOSITE team to swap them; click again to cancel.
   const [swapPick, setSwapPick] = useState<string | null>(null);
+  const [shared, setShared] = useState(false); // these teams recorded to history
 
   // Auto-pick captains randomly (one per team) when none are flagged in the pool
   const [autoCaptain, setAutoCaptain] = useState(true);
@@ -368,6 +371,7 @@ export default function TeamBalancerPage() {
     });
     const data = await res.json();
     setResult(data);
+    setShared(false);
     // Assign random jersey colors each time
     const [a, b] = getRandomJerseyPair();
     setJerseyA(a);
@@ -478,6 +482,26 @@ export default function TeamBalancerPage() {
       await navigator.clipboard.writeText(text);
       alert("Copied to clipboard!");
     }
+    // Remember what was shared so the next build avoids repeating these teams.
+    recordSharedTeams();
+  }
+
+  async function recordSharedTeams() {
+    if (!result) return;
+    try {
+      await fetch("/api/team-balancer/save-sheet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: `Match ${new Date().toLocaleDateString("en-GB")}`,
+          teamAName: JERSEY_COLORS[jerseyA].name,
+          teamBName: JERSEY_COLORS[jerseyB].name,
+          teamAIds: result.teamA.map((p) => p.id),
+          teamBIds: result.teamB.map((p) => p.id),
+        }),
+      });
+      setShared(true);
+    } catch { /* recording history is best-effort — never block sharing */ }
   }
 
   // Always alphabetical so the selection grid and pool tab list players
@@ -889,6 +913,16 @@ export default function TeamBalancerPage() {
                   📤 Share
                 </button>
               </div>
+              {shared && (
+                <p className="text-center text-xs text-green-700 bg-green-50 rounded-lg py-2 mt-2">
+                  ✅ Teams recorded — the next build will avoid repeating these combinations.
+                </p>
+              )}
+              {(result.repeatablePairs ?? 0) > 0 && (
+                <p className="text-center text-xs text-gray-500 mt-2">
+                  🔄 {result.repeatedPairs} of {result.repeatablePairs} teammate pairings repeat from the last 2 shared sheets
+                </p>
+              )}
             </div>
           )}
         </div>

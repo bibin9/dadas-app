@@ -133,6 +133,7 @@ export default function PublicTeamsPage() {
   const [jerseyB, setJerseyB] = useState(2);
   const [swapPick, setSwapPick] = useState<string | null>(null);
   const [autoCaptain, setAutoCaptain] = useState(true);
+  const [shared, setShared] = useState(false); // these teams recorded to history
 
   useEffect(() => {
     loadData();
@@ -169,6 +170,7 @@ export default function PublicTeamsPage() {
     });
     const data = await res.json();
     setResult({ teamA: data.teamA || [], teamB: data.teamB || [] });
+    setShared(false);
     const [a, b] = getRandomJerseyPair();
     setJerseyA(a);
     setJerseyB(b);
@@ -256,6 +258,26 @@ export default function PublicTeamsPage() {
       await navigator.clipboard.writeText(text);
       alert("Copied to clipboard!");
     }
+    // Remember what was shared so the next build avoids repeating these teams.
+    recordSharedTeams();
+  }
+
+  async function recordSharedTeams() {
+    if (!result) return;
+    try {
+      await fetch("/api/team-balancer/save-sheet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: `Match ${new Date().toLocaleDateString("en-GB")}`,
+          teamAName: JERSEY_COLORS[jerseyA].name,
+          teamBName: JERSEY_COLORS[jerseyB].name,
+          teamAIds: result.teamA.map((p) => p.id),
+          teamBIds: result.teamB.map((p) => p.id),
+        }),
+      });
+      setShared(true);
+    } catch { /* recording history is best-effort — never block sharing */ }
   }
 
   const sortedMembers = [...members].sort((a, b) => a.name.localeCompare(b.name));
@@ -559,6 +581,11 @@ export default function PublicTeamsPage() {
                 📤 Share
               </button>
             </div>
+            {shared && (
+              <p className="text-center text-xs text-green-700 bg-green-50 rounded-lg py-2 mt-2">
+                ✅ Teams recorded — the next build will avoid repeating these combinations.
+              </p>
+            )}
           </div>
         )}
 

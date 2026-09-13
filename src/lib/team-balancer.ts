@@ -113,6 +113,10 @@ export interface BuiltTeams {
   attributeImbalance: number;
   // Role-category + exact-position imbalance (0 = positions perfectly even).
   positionImbalance: number;
+  // Teammate pairs repeated from the last 2 shared sheets (0 = fully fresh).
+  repeatedPairs: number;
+  // Teammate pairs that existed in those sheets and could still recur.
+  repeatablePairs: number;
 }
 
 // Availability modifier: tired players play 1 full point below their level.
@@ -194,6 +198,24 @@ export async function buildTeams(
       for (const x of JSON.parse(ts.teamBIds) as string[]) ids.add(x);
     } catch { /* malformed json, skip */ }
     for (const id of ids) appearances.set(id, (appearances.get(id) || 0) + 1);
+  }
+
+  // ── Repeat-avoidance memory ──
+  // From the LAST 2 shared team sheets, collect every pair of players who were
+  // TEAMMATES. Re-using those pairings is what makes teams feel "the same
+  // again", so the optimizer treats each repeated pair as a small penalty.
+  const pairKey = (x: string, y: string) => (x < y ? `${x}|${y}` : `${y}|${x}`);
+  const previousTeammatePairs = new Set<string>();
+  for (const ts of recentSheets.slice(0, 2)) {
+    for (const key of ["teamAIds", "teamBIds"] as const) {
+      let side: string[] = [];
+      try { side = JSON.parse(ts[key]) as string[]; } catch { continue; }
+      for (let i = 0; i < side.length; i++) {
+        for (let j = i + 1; j < side.length; j++) {
+          previousTeammatePairs.add(pairKey(side[i], side[j]));
+        }
+      }
+    }
   }
   // Convert appearances to a small modifier:
   //   0 appearances in last 5 → -0.3 (rusty)
@@ -430,6 +452,21 @@ export async function buildTeams(
     );
   }
 
+  // How many teammate pairs repeat from the last 2 shared team sheets.
+  // 0 = nobody is paired with the same teammate as last time.
+  function repeatPairs(tA: PlayerEntry[], tB: PlayerEntry[]): number {
+    if (previousTeammatePairs.size === 0) return 0;
+    let n = 0;
+    for (const side of [tA, tB]) {
+      for (let i = 0; i < side.length; i++) {
+        for (let j = i + 1; j < side.length; j++) {
+          if (previousTeammatePairs.has(pairKey(side[i].id, side[j].id))) n++;
+        }
+      }
+    }
+    return n;
+  }
+
   // ── Multi-phase optimization ──
   // Goal: get score gap as close to 0 as possible (target ≤ 1 pt), while
   // preserving position balance as much as the composition allows.
@@ -505,11 +542,16 @@ export async function buildTeams(
   //     already is, for impossible-roster cases that can't reach ≤1 pt).
   // It strictly reduces the combined distribution+position imbalance, so the
   // score balance and equal headcount achieved earlier are fully preserved.
+  // Weight on repeated teammate pairings. Each repeat costs the same as one
+  // attribute/position mismatch, so the optimizer trades them off naturally
+  // instead of wrecking the spread just to shuffle people around.
+  const REPEAT_WEIGHT = 1;
   function combinedImbalance(tA: PlayerEntry[], tB: PlayerEntry[]): number {
     return (
       attributeImbalance(tA, tB) +
       categoryImbalance(tA, tB) +
-      exactPositionImbalance(tA, tB)
+      exactPositionImbalance(tA, tB) +
+      REPEAT_WEIGHT * repeatPairs(tA, tB)
     );
   }
   function runEqualizationPhase(targetGap: number): number {
@@ -582,5 +624,7 @@ export async function buildTeams(
     avoidViolations: countViolations(teamA, teamB),
     attributeImbalance: attributeImbalance(teamA, teamB),
     positionImbalance: categoryImbalance(teamA, teamB) + exactPositionImbalance(teamA, teamB),
+    repeatedPairs: repeatPairs(teamA, teamB),
+    repeatablePairs: previousTeammatePairs.size,
   };
 }
