@@ -301,6 +301,13 @@ export async function buildTeams(
     captainIds: string[];
   }
 
+  // The scoring metrics are pure (they take both teams as arguments and read
+  // only avoidPairs / previousTeammatePairs). We capture them from the first
+  // attempt so the exhaustive search below can reuse them without duplicating
+  // the logic.
+  type Metric = (tA: PlayerEntry[], tB: PlayerEntry[]) => number;
+  let metrics: { violations: Metric; cat: Metric; exact: Metric; attr: Metric; repeats: Metric } | null = null;
+
   // One full build: shuffle → distribute → optimise. Called several times so we
   // can pick the freshest of many equally-balanced solutions.
   function runAttempt(): Attempt {
@@ -701,6 +708,11 @@ export async function buildTeams(
     return iter;
   }
 
+  metrics = {
+    violations: countViolations, cat: categoryImbalance, exact: exactPositionImbalance,
+    attr: attributeImbalance, repeats: repeatPairs,
+  };
+
   const TARGET_GAP = 1.0;
   // We escalate to a more permissive phase if EITHER the score gap is still
   // above target OR there is an unresolved avoid-pair violation. A clash
@@ -777,6 +789,79 @@ export async function buildTeams(
   // attempts mutated the shared player objects).
   const bestCaptains = new Set(best.captainIds);
   for (const p of players) p.isCaptain = bestCaptains.has(p.id);
+
+  // ── Exhaustive search for normal squad sizes ──
+  // The swap optimiser is a hill-climb and can settle on a local optimum,
+  // leaving a better-balanced split on the table (QA reproduced this at 8
+  // players). For a typical turnout we can simply check EVERY possible split
+  // and take the provably best one, which guarantees the tightest points gap
+  // the squad allows. Falls back to the heuristic for very large turnouts.
+  function exhaustiveBest(): Attempt | null {
+    const n = players.length;
+    if (n < 4 || n > 18 || !metrics) return null;
+    const sizeA = Math.floor(n / 2);
+    let total = 1;
+    for (let i = 0; i < sizeA; i++) total = (total * (n - i)) / (i + 1);
+    if (total > 60000) return null; // keep the request fast
+
+    const caps = players.filter((p) => p.isCaptain).map((p) => p.id);
+    const mustSplit = caps.length === 2 ? caps : null;
+    const captainIds = players.map((p) => p.id).filter((id) => bestCaptains.has(id));
+    const evenSplit = n % 2 === 0;
+
+    let found: Attempt | null = null;
+    const pick: number[] = [];
+
+    const evaluate = () => {
+      const inA = new Uint8Array(n);
+      for (const i of pick) inA[i] = 1;
+      const tA: PlayerEntry[] = [];
+      const tB: PlayerEntry[] = [];
+      let sA = 0;
+      for (let i = 0; i < n; i++) {
+        if (inA[i]) { tA.push(players[i]); sA += players[i].score; }
+        else tB.push(players[i]);
+      }
+      if (mustSplit) {
+        const aHas = tA.some((p) => p.id === mustSplit[0]) ? 1 : 0;
+        const bHas = tA.some((p) => p.id === mustSplit[1]) ? 1 : 0;
+        if (aHas === bHas) return; // both captains on the same side
+      }
+      let sB = 0;
+      for (const p of tB) sB += p.score;
+      const cand: Attempt = {
+        teamA: tA, teamB: tB, scoreA: sA, scoreB: sB,
+        gap: Math.abs(sA - sB),
+        violations: metrics!.violations(tA, tB),
+        repeated: metrics!.repeats(tA, tB),
+        attrImb: metrics!.attr(tA, tB),
+        posImb: metrics!.cat(tA, tB) + metrics!.exact(tA, tB),
+        iterations: 0,
+        captainIds,
+      };
+      // Random tie-break keeps variety among equally-optimal splits.
+      if (!found || better(cand, found) || (!better(found, cand) && Math.random() < 0.5)) found = cand;
+    };
+
+    // Enumerate every choice of sizeA players. For an even split, pinning
+    // player 0 to team A skips the mirror-image duplicate of each split.
+    const start = evenSplit ? 1 : 0;
+    if (evenSplit) pick.push(0);
+    const need = evenSplit ? sizeA - 1 : sizeA;
+    const rec = (from: number, left: number) => {
+      if (left === 0) { evaluate(); return; }
+      for (let i = from; i <= n - left; i++) {
+        pick.push(i);
+        rec(i + 1, left - 1);
+        pick.pop();
+      }
+    };
+    rec(start, need);
+    return found;
+  }
+
+  const exhaustive = exhaustiveBest();
+  if (exhaustive && better(exhaustive, best)) best = exhaustive;
 
   return {
     teamA: best.teamA,
