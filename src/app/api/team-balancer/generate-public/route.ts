@@ -19,13 +19,12 @@ export async function POST(req: NextRequest) {
     // Whether the two teams have an equal number of players — purely structural,
     // not a rating. Lets the UI confirm a fair split without revealing strength.
     balanced: r.teamA.length === r.teamB.length || Math.abs(r.teamA.length - r.teamB.length) <= 1,
-    // Aggregate evenness of speed + ball-control spread (0 = perfectly even).
-    // A single count of mismatches — does NOT reveal any individual's rating.
-    attributeSpread: r.attributeImbalance,
-    // Aggregate evenness of positions across teams (0 = perfectly even).
-    positionSpread: r.positionImbalance,
-    // Confirms the teams are within the 1-point strength rule. A boolean only —
-    // does NOT reveal the actual scores or any individual's rating.
-    withinOnePoint: r.difference <= 1.0001,
   });
+  // NOTE: attributeSpread / positionSpread / withinOnePoint were deliberately
+  // REMOVED. Although each looked like a harmless aggregate, together with the
+  // caller-controlled guestPlayers ratings they formed an oracle: pit one real
+  // player against a guest of known strength and binary-search the guest until
+  // withinOnePoint flips, and the player's hidden score falls out. A security
+  // review recovered an exact rating this way with no login. Nothing derived
+  // from the secret scores may be returned on the public route.
 }
