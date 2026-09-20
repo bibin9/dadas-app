@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { readJsonBody, badRequest } from "@/lib/http";
 
 // Saves a guest player so it can be reused next time without re-entering.
 // A guest is a Member flagged isGuest=true and active=false — same convention
@@ -10,17 +11,19 @@ import { prisma } from "@/lib/db";
 // Dedupe: if a guest with the same (case-insensitive, trimmed) name already
 // exists, we reuse it and just refresh its skill — no duplicate is created.
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-  const name = (body.name || "").trim();
-  if (!name) return NextResponse.json({ error: "Name required" }, { status: 400 });
+  const body = await readJsonBody(req);
+  if (!body) return badRequest("Invalid JSON body");
+  const str = (v: unknown, fallback: string) => (typeof v === "string" && v ? v : fallback);
+  const name = str(body.name, "").trim();
+  if (!name) return badRequest("Name required");
 
   const skillData = {
-    skillTier: body.skillTier || "silver",
-    ageGroup: body.ageGroup || "age30to40",
-    position: body.position || "any",
-    ballControl: body.ballControl || "ok",
-    runningSpeed: body.runningSpeed || "medium",
-    passAccuracy: body.passAccuracy || "ok",
+    skillTier: str(body.skillTier, "silver"),
+    ageGroup: str(body.ageGroup, "age30to40"),
+    position: str(body.position, "any"),
+    ballControl: str(body.ballControl, "ok"),
+    runningSpeed: str(body.runningSpeed, "medium"),
+    passAccuracy: str(body.passAccuracy, "ok"),
   };
 
   // Look for an existing guest by case-insensitive name match.

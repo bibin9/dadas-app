@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { hasCommitteeAccess } from "@/lib/auth";
+import { readJsonBody, badRequest } from "@/lib/http";
 
 // The ONE thing the committee may write: notes on a player.
 // They still cannot change any rating — this is how observations get back to
@@ -10,7 +11,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await req.json();
+  const body = await readJsonBody(req);
+  if (!body) return badRequest("Invalid JSON body");
   const memberId = typeof body.memberId === "string" ? body.memberId : "";
   const text = typeof body.text === "string" ? body.text.trim() : "";
   const author = typeof body.author === "string" ? body.author.trim().slice(0, 40) : "";

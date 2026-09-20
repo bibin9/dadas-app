@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { buildTeams, PlayerEntry } from "@/lib/team-balancer";
+import { buildTeams, PlayerEntry, GuestInput } from "@/lib/team-balancer";
+import { readJsonBody, badRequest } from "@/lib/http";
 
 // PUBLIC endpoint for the shareable /teams page.
 // Runs the SAME balancing algorithm (so avoid-pairs, captains, ratings all
@@ -10,9 +11,28 @@ function strip(p: PlayerEntry) {
   return { id: p.id, name: p.name, isCaptain: p.isCaptain, isGuest: p.isGuest };
 }
 
+const MAX_PLAYERS = 80;
+
 export async function POST(req: NextRequest) {
-  const { playerIds, guestPlayers, autoCaptain } = await req.json();
-  const r = await buildTeams(playerIds as string[], guestPlayers, autoCaptain);
+  const body = await readJsonBody(req);
+  if (!body) return badRequest("Invalid JSON body");
+
+  // Validate rather than cast: a bare {} used to balance the entire club, and
+  // a non-array playerIds crashed the handler.
+  const playerIds = Array.isArray(body.playerIds) ? (body.playerIds as unknown[]).filter((x): x is string => typeof x === "string") : null;
+  if (!playerIds) return badRequest("playerIds must be an array");
+  const guestPlayers = body.guestPlayers === undefined || body.guestPlayers === null
+    ? []
+    : Array.isArray(body.guestPlayers) ? (body.guestPlayers as GuestInput[]) : null;
+  if (!guestPlayers) return badRequest("guestPlayers must be an array");
+  if (playerIds.length + guestPlayers.length === 0) {
+    return badRequest("Select at least one player");
+  }
+  if (playerIds.length + guestPlayers.length > MAX_PLAYERS) {
+    return badRequest(`Too many players (max ${MAX_PLAYERS})`);
+  }
+
+  const r = await buildTeams(playerIds, guestPlayers, !!body.autoCaptain);
   return NextResponse.json({
     teamA: r.teamA.map(strip),
     teamB: r.teamB.map(strip),

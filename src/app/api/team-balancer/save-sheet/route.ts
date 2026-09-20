@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { readJsonBody, badRequest } from "@/lib/http";
 
 // Records the teams that were actually SHARED to WhatsApp, so the balancer can
 // avoid repeating the same combinations next time.
@@ -11,7 +12,8 @@ import { prisma } from "@/lib/db";
 const KEEP_SHEETS = 30;
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
+  const body = await readJsonBody(req);
+  if (!body) return badRequest("Invalid JSON body");
   const rawA: unknown = body.teamAIds;
   const rawB: unknown = body.teamBIds;
   if (!Array.isArray(rawA) || !Array.isArray(rawB)) {

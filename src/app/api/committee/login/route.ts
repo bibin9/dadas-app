@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { signCommitteeToken, COMMITTEE_COOKIE } from "@/lib/auth";
+import { readJsonBody, badRequest } from "@/lib/http";
 
 // Password gate for the team selection committee screen.
 // The password lives in the COMMITTEE_PASSWORD environment variable — it is
@@ -14,9 +15,11 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { password } = await req.json();
+  const body = await readJsonBody(req);
+  if (!body) return badRequest("Invalid JSON body");
+  const password = body.password;
   if (typeof password !== "string" || password.length === 0) {
-    return NextResponse.json({ error: "Password required" }, { status: 400 });
+    return badRequest("Password required");
   }
 
   // Length-then-bytes comparison; avoids leaking the password via early exit.
