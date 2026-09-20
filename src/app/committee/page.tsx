@@ -6,6 +6,7 @@ interface Member { id: string; name: string; active: boolean; isGuest: boolean }
 interface Skill {
   memberId: string; skillTier: string; ageGroup: string; position: string;
   isCaptain: boolean; availability: string; ballControl: string; runningSpeed: string;
+  passAccuracy: string;
 }
 interface Comment { id: string; memberId: string; author: string; text: string; createdAt: string }
 interface Sheet { id: string; name: string; date: string; teamAName: string; teamBName: string; teamA: string[]; teamB: string[] }
@@ -34,6 +35,10 @@ const SPEED_LABEL: Record<string, string> = { slow: "Slow −0.5", medium: "Med 
 const BALL_LABEL: Record<string, string> = {
   no: "No −0.75", less: "Less −0.5", ok: "Ok 0", good: "Good +0.5", verygood: "V.Good +1",
 };
+const PASS_LABEL: Record<string, string> = {
+  poor: "Poor −0.75", weak: "Weak −0.5", ok: "Ok 0", good: "Good +0.5", excellent: "Excellent +1",
+};
+const PASS_MOD: Record<string, number> = { poor: -0.75, weak: -0.5, ok: 0, good: 0.5, excellent: 1 };
 const AGE_MOD: Record<string, number> = { under30: 0.4, age30to40: 0, age40to50: -0.2, over50: -0.4, youth: 0.4, senior: 0, veteran: -0.2 };
 const POS_MOD: Record<string, number> = {
   goalkeeper: 0.5, cb: 0.3, lb: 0.2, rb: 0.2, lwb: 0.2, rwb: 0.2, defender: 0.2,
@@ -42,7 +47,7 @@ const POS_MOD: Record<string, number> = {
 };
 const SPEED_MOD: Record<string, number> = { slow: -0.5, medium: 0, fast: 0.5 };
 const BALL_MOD: Record<string, number> = { no: -0.75, less: -0.5, ok: 0, good: 0.5, verygood: 1 };
-const AVAIL_MOD: Record<string, number> = { fit: 0, tired: -1, injured: 0 };
+const AVAIL_MOD: Record<string, number> = { fit: 0, halffit: -0.5, tired: -1, injured: 0 };
 
 // Mirrors the server formula so the committee can see WHY a rating lands where
 // it does. Recent-form is excluded (it depends on match history, not the pool).
@@ -51,7 +56,8 @@ function ratingOf(s: Skill | undefined): number {
   let tier = s.skillTier;
   if (tier === "silver" && s.ageGroup === "over50" && s.availability === "tired") tier = "bronze";
   return Math.round(((TIER_PTS[tier] ?? 3) + (AGE_MOD[s.ageGroup] ?? 0) + (POS_MOD[s.position] ?? 0)
-    + (AVAIL_MOD[s.availability] ?? 0) + (BALL_MOD[s.ballControl] ?? 0) + (SPEED_MOD[s.runningSpeed] ?? 0)) * 10) / 10;
+    + (AVAIL_MOD[s.availability] ?? 0) + (BALL_MOD[s.ballControl] ?? 0) + (SPEED_MOD[s.runningSpeed] ?? 0)
+    + (PASS_MOD[s.passAccuracy] ?? 0)) * 10) / 10;
 }
 
 export default function CommitteePage() {
@@ -239,9 +245,17 @@ export default function CommitteePage() {
                   </ul>
                 </div>
                 <div>
+                  <div className="font-semibold text-gray-800 mb-1">Pass accuracy</div>
+                  <ul className="space-y-0.5">
+                    {[["Poor", "−0.75"], ["Weak", "−0.5"], ["Ok", "0"], ["Good", "+0.5"], ["Excellent", "+1"]].map(([l, v]) => (
+                      <li key={l} className="flex justify-between"><span>{l}</span><span className="font-mono">{v}</span></li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
                   <div className="font-semibold text-gray-800 mb-1">Fitness</div>
                   <ul className="space-y-0.5">
-                    {[["Fit", "0"], ["Tired", "−1"], ["Injured", "excluded from teams"]].map(([l, v]) => (
+                    {[["Fit", "0"], ["Fit 1st half only", "−0.5"], ["Tired", "−1"], ["Injured", "excluded from teams"]].map(([l, v]) => (
                       <li key={l} className="flex justify-between gap-3"><span>{l}</span><span className="font-mono text-right">{v}</span></li>
                     ))}
                   </ul>
@@ -323,6 +337,7 @@ export default function CommitteePage() {
                 <th className="text-left px-3 py-2">Age</th>
                 <th className="text-left px-3 py-2">Speed</th>
                 <th className="text-left px-3 py-2">Ball control</th>
+                <th className="text-left px-3 py-2">Pass accuracy</th>
                 <th className="text-left px-3 py-2">Fitness</th>
                 <th className="text-right px-3 py-2">Rating</th>
                 <th className="text-center px-3 py-2">Notes</th>
@@ -352,9 +367,11 @@ export default function CommitteePage() {
                     <td className="px-3 py-2 text-gray-600">{AGE_LABEL[s?.ageGroup ?? "age30to40"] ?? "—"}</td>
                     <td className="px-3 py-2 text-gray-600">{SPEED_LABEL[s?.runningSpeed ?? "medium"]}</td>
                     <td className="px-3 py-2 text-gray-600">{BALL_LABEL[s?.ballControl ?? "ok"]}</td>
+                    <td className="px-3 py-2 text-gray-600">{PASS_LABEL[s?.passAccuracy ?? "ok"]}</td>
                     <td className="px-3 py-2">
                       {s?.availability === "injured" ? <span className="text-red-700 font-semibold">🚑 Injured</span>
                         : s?.availability === "tired" ? <span className="text-yellow-700 font-semibold">😓 Tired</span>
+                        : s?.availability === "halffit" ? <span className="text-amber-700 font-semibold">🕐 1st half only</span>
                         : <span className="text-green-700">Fit</span>}
                     </td>
                     <td className="px-3 py-2 text-right font-bold text-gray-800">{ratingOf(s).toFixed(1)}</td>
@@ -371,7 +388,7 @@ export default function CommitteePage() {
                   </tr>
                   {openFor === m.id && (
                     <tr className="bg-blue-50/40 border-t border-blue-100">
-                      <td colSpan={9} className="px-4 py-3">
+                      <td colSpan={10} className="px-4 py-3">
                         <div className="text-xs font-semibold text-gray-700 mb-2">Notes on {m.name}</div>
                         {mine.length > 0 && (
                           <div className="space-y-1.5 mb-3">

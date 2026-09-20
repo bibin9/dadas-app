@@ -34,6 +34,7 @@ interface GuestPlayer {
   position: string;
   ballControl: string;
   runningSpeed: string;
+  passAccuracy: string;
 }
 
 const SKILL_TIERS = [
@@ -51,6 +52,14 @@ const BALL_CONTROL_OPTIONS = [
   { value: "ok", label: "Ok (0)" },
   { value: "good", label: "Good (+0.5)" },
   { value: "verygood", label: "Very Good (+1)" },
+];
+
+const PASS_OPTIONS = [
+  { value: "poor", label: "Poor (-0.75)" },
+  { value: "weak", label: "Weak (-0.5)" },
+  { value: "ok", label: "Ok (0)" },
+  { value: "good", label: "Good (+0.5)" },
+  { value: "excellent", label: "Excellent (+1)" },
 ];
 
 const SPEED_OPTIONS = [
@@ -127,6 +136,7 @@ export default function PublicTeamsPage() {
   const [guestPosition, setGuestPosition] = useState("any");
   const [guestBall, setGuestBall] = useState("ok");
   const [guestSpeed, setGuestSpeed] = useState("medium");
+  const [guestPass, setGuestPass] = useState("ok");
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState<TeamResult | null>(null);
   const [jerseyA, setJerseyA] = useState(0);
@@ -197,7 +207,7 @@ export default function PublicTeamsPage() {
 
   function addGuest() {
     if (!guestName.trim()) return;
-    const newGuests = [...guests, { name: guestName.trim(), skillTier: guestTier, ageGroup: guestAge, position: guestPosition, ballControl: guestBall, runningSpeed: guestSpeed }];
+    const newGuests = [...guests, { name: guestName.trim(), skillTier: guestTier, ageGroup: guestAge, position: guestPosition, ballControl: guestBall, runningSpeed: guestSpeed, passAccuracy: guestPass }];
     setGuests(newGuests);
     setGuestName("");
     setGuestTier("silver");
@@ -205,6 +215,7 @@ export default function PublicTeamsPage() {
     setGuestPosition("any");
     setGuestBall("ok");
     setGuestSpeed("medium");
+    setGuestPass("ok");
     doGenerate(selectedIds, newGuests, autoCaptain);
   }
 
@@ -416,6 +427,9 @@ export default function PublicTeamsPage() {
             </select>
             <select value={guestSpeed} onChange={(e) => setGuestSpeed(e.target.value)} className="border rounded-lg px-2 py-2 text-sm bg-white" title="Running speed">
               {SPEED_OPTIONS.map((s) => <option key={s.value} value={s.value}>🏃 {s.label}</option>)}
+            </select>
+            <select value={guestPass} onChange={(e) => setGuestPass(e.target.value)} className="border rounded-lg px-2 py-2 text-sm bg-white" title="Pass accuracy">
+              {PASS_OPTIONS.map((s) => <option key={s.value} value={s.value}>🎯 {s.label}</option>)}
             </select>
             <button
               onClick={addGuest}

@@ -203,6 +203,7 @@ const migrations = [
   `ALTER TABLE PlayerSkill ADD COLUMN availability TEXT NOT NULL DEFAULT 'fit'`,
   `ALTER TABLE PlayerSkill ADD COLUMN ballControl TEXT NOT NULL DEFAULT 'ok'`,
   `ALTER TABLE PlayerSkill ADD COLUMN runningSpeed TEXT NOT NULL DEFAULT 'medium'`,
+  `ALTER TABLE PlayerSkill ADD COLUMN passAccuracy TEXT NOT NULL DEFAULT 'ok'`,
   `CREATE TABLE IF NOT EXISTS PlayerComment (id TEXT PRIMARY KEY, memberId TEXT NOT NULL, author TEXT NOT NULL DEFAULT '', text TEXT NOT NULL, createdAt TEXT NOT NULL)`,
   `CREATE INDEX IF NOT EXISTS idx_playercomment_member ON PlayerComment(memberId)`,
   `CREATE INDEX IF NOT EXISTS idx_playercomment_created ON PlayerComment(createdAt)`,

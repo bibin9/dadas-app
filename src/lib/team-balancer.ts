@@ -86,6 +86,7 @@ export interface PlayerEntry {
   position: string;
   ballControl: string;
   runningSpeed: string;
+  passAccuracy: string;
   score: number;
   isGuest: boolean;
   isCaptain: boolean;
@@ -99,6 +100,7 @@ export interface GuestInput {
   ballControl?: string;
   availability?: string;
   runningSpeed?: string;
+  passAccuracy?: string;
 }
 
 export interface BuiltTeams {
@@ -119,9 +121,12 @@ export interface BuiltTeams {
   repeatablePairs: number;
 }
 
-// Availability modifier: tired players play 1 full point below their level.
+// Availability modifier. "halffit" covers the common case of a player who is
+// sharp for the first half and fades after the break — half the penalty of
+// someone who turns up tired for the whole match.
 const AVAILABILITY_MODIFIERS: Record<string, number> = {
   fit: 0,
+  halffit: -0.5,
   tired: -1,
   injured: 0, // injured players are excluded entirely, not just modified
 };
@@ -142,6 +147,16 @@ const SPEED_MODIFIERS: Record<string, number> = {
   fast: 0.5,
 };
 
+// Passing accuracy — distinct from ball control: how reliably they find a
+// team-mate, rather than how well they keep the ball.
+const PASS_MODIFIERS: Record<string, number> = {
+  poor: -0.75,
+  weak: -0.5,
+  ok: 0,
+  good: 0.5,
+  excellent: 1,
+};
+
 // Special rule: a Silver-tier player who is BOTH over 50 AND tired
 // should be treated as Bronze (effective skill drop from being old + tired).
 function effectiveSkillTier(skillTier: string, ageGroup: string, availability: string): string {
@@ -151,7 +166,8 @@ function effectiveSkillTier(skillTier: string, ageGroup: string, availability: s
   return skillTier;
 }
 
-// Score = base skill + age + position + availability + ball control + speed + recent form
+// Score = base skill + age + position + availability + ball control + speed
+//         + pass accuracy + recent form
 function calculateScore(
   skillTier: string,
   ageGroup: string,
@@ -159,6 +175,7 @@ function calculateScore(
   availability = "fit",
   ballControl = "ok",
   runningSpeed = "medium",
+  passAccuracy = "ok",
   recentFormMod = 0,
 ): number {
   const tier = effectiveSkillTier(skillTier, ageGroup, availability);
@@ -168,7 +185,8 @@ function calculateScore(
   const availMod = AVAILABILITY_MODIFIERS[availability] ?? 0;
   const bcMod = BALL_CONTROL_MODIFIERS[ballControl] ?? 0;
   const speedMod = SPEED_MODIFIERS[runningSpeed] ?? 0;
-  return Math.round((base + ageMod + posMod + availMod + bcMod + speedMod + recentFormMod) * 10) / 10;
+  const passMod = PASS_MODIFIERS[passAccuracy] ?? 0;
+  return Math.round((base + ageMod + posMod + availMod + bcMod + speedMod + passMod + recentFormMod) * 10) / 10;
 }
 
 // Core team-building algorithm. Shared by the admin (full data) and public
@@ -240,6 +258,7 @@ export async function buildTeams(
     const position = skill?.position ?? "any";
     const ballControl = skill?.ballControl ?? "ok";
     const runningSpeed = skill?.runningSpeed ?? "medium";
+    const passAccuracy = skill?.passAccuracy ?? "ok";
     const formMod = recentFormModifier(m.id);
     players.push({
       id: m.id,
@@ -249,7 +268,8 @@ export async function buildTeams(
       position,
       ballControl,
       runningSpeed,
-      score: calculateScore(skillTier, ageGroup, position, availability, ballControl, runningSpeed, formMod),
+      passAccuracy,
+      score: calculateScore(skillTier, ageGroup, position, availability, ballControl, runningSpeed, passAccuracy, formMod),
       isGuest: !!m.isGuest, // saved guests are members flagged isGuest
       isCaptain: !!skill?.isCaptain,
     });
@@ -264,6 +284,7 @@ export async function buildTeams(
       const ballControl = g.ballControl || "ok";
       const availability = g.availability || "fit";
       const runningSpeed = g.runningSpeed || "medium";
+      const passAccuracy = g.passAccuracy || "ok";
       players.push({
         id: `guest-${Date.now()}-${Math.random().toString(36).slice(2)}`,
         name: g.name,
@@ -272,7 +293,8 @@ export async function buildTeams(
         position,
         ballControl,
         runningSpeed,
-        score: calculateScore(skillTier, ageGroup, position, availability, ballControl, runningSpeed),
+        passAccuracy,
+        score: calculateScore(skillTier, ageGroup, position, availability, ballControl, runningSpeed, passAccuracy),
         isGuest: true,
         isCaptain: false,
       });
@@ -478,12 +500,14 @@ export async function buildTeams(
     return s;
   }
 
-  // Attribute distribution imbalance: running speed + ball control combined.
-  // Lower = fast/slow players and each ball-control level are evenly spread.
+  // Attribute distribution imbalance: speed + ball control + pass accuracy.
+  // Lower = fast/slow players and each skill level are evenly spread, so one
+  // team can't end up with all the accurate passers.
   function attributeImbalance(tA: PlayerEntry[], tB: PlayerEntry[]): number {
     return (
       bucketImbalance(tA, tB, (p) => p.runningSpeed) +
-      bucketImbalance(tA, tB, (p) => p.ballControl)
+      bucketImbalance(tA, tB, (p) => p.ballControl) +
+      bucketImbalance(tA, tB, (p) => p.passAccuracy)
     );
   }
 

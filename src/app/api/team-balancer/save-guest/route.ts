@@ -20,6 +20,7 @@ export async function POST(req: NextRequest) {
     position: body.position || "any",
     ballControl: body.ballControl || "ok",
     runningSpeed: body.runningSpeed || "medium",
+    passAccuracy: body.passAccuracy || "ok",
   };
 
   // Look for an existing guest by case-insensitive name match.

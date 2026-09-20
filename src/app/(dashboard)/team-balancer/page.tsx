@@ -20,6 +20,7 @@ interface PlayerSkill {
   availability: string;
   ballControl: string;
   runningSpeed: string;
+  passAccuracy: string;
   member: Member;
 }
 
@@ -62,6 +63,7 @@ interface GuestPlayer {
   position: string;
   ballControl: string;
   runningSpeed: string;
+  passAccuracy: string;
 }
 
 const SKILL_TIERS = [
@@ -126,6 +128,14 @@ const BALL_CONTROL_OPTIONS = [
   { value: "verygood", label: "Very Good (+1)" },
 ];
 
+const PASS_OPTIONS = [
+  { value: "poor", label: "Poor (-0.75)" },
+  { value: "weak", label: "Weak (-0.5)" },
+  { value: "ok", label: "Ok (0)" },
+  { value: "good", label: "Good (+0.5)" },
+  { value: "excellent", label: "Excellent (+1)" },
+];
+
 const SPEED_OPTIONS = [
   { value: "slow", label: "Slow (-0.5)" },
   { value: "medium", label: "Medium (0)" },
@@ -176,7 +186,7 @@ export default function TeamBalancerPage() {
   const [filterTier, setFilterTier] = useState("all");
   const [savingId, setSavingId] = useState<string | null>(null);
   const [editSkills, setEditSkills] = useState<
-    Record<string, { skillTier: string; ageGroup: string; position: string; isCaptain: boolean; availability: string; ballControl: string; runningSpeed: string }>
+    Record<string, { skillTier: string; ageGroup: string; position: string; isCaptain: boolean; availability: string; ballControl: string; runningSpeed: string; passAccuracy: string }>
   >({});
 
   // Generate tab state
@@ -189,6 +199,7 @@ export default function TeamBalancerPage() {
   const [guestPosition, setGuestPosition] = useState("any");
   const [guestBall, setGuestBall] = useState("ok");
   const [guestSpeed, setGuestSpeed] = useState("medium");
+  const [guestPass, setGuestPass] = useState("ok");
   const [guestSave, setGuestSave] = useState(true); // remember this guest for next time
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState<TeamResult | null>(null);
@@ -323,6 +334,7 @@ export default function TeamBalancerPage() {
         availability: edit.availability,
         ballControl: edit.ballControl,
         runningSpeed: edit.runningSpeed,
+        passAccuracy: edit.passAccuracy,
       }),
     });
     await loadData();
@@ -340,6 +352,7 @@ export default function TeamBalancerPage() {
       availability: s?.availability ?? "fit",
       ballControl: s?.ballControl ?? "ok",
       runningSpeed: s?.runningSpeed ?? "medium",
+      passAccuracy: s?.passAccuracy ?? "ok",
     };
   }
 
@@ -400,7 +413,7 @@ export default function TeamBalancerPage() {
 
   async function addGuest() {
     if (!guestName.trim()) return;
-    const payload = { name: guestName.trim(), skillTier: guestTier, ageGroup: guestAge, position: guestPosition, ballControl: guestBall, runningSpeed: guestSpeed };
+    const payload = { name: guestName.trim(), skillTier: guestTier, ageGroup: guestAge, position: guestPosition, ballControl: guestBall, runningSpeed: guestSpeed, passAccuracy: guestPass };
 
     if (guestSave) {
       // Persist as a reusable saved guest (member isGuest=true), then select it.
@@ -617,7 +630,7 @@ export default function TeamBalancerPage() {
                 const tier = s?.skillTier ?? "silver";
                 const isSelected = selectedIds.has(m.id);
                 const isInjured = s?.availability === "injured";
-                const isTired = s?.availability === "tired";
+                const isTired = s?.availability === "tired" || s?.availability === "halffit";
                 const isCaptain = !!s?.isCaptain;
                 return (
                   <button
@@ -706,6 +719,16 @@ export default function TeamBalancerPage() {
               >
                 {SPEED_OPTIONS.map((s) => (
                   <option key={s.value} value={s.value}>🏃 {s.label}</option>
+                ))}
+              </select>
+              <select
+                value={guestPass}
+                onChange={(e) => setGuestPass(e.target.value)}
+                className="border rounded-lg px-2 py-2 text-sm bg-white"
+                title="Pass accuracy"
+              >
+                {PASS_OPTIONS.map((s) => (
+                  <option key={s.value} value={s.value}>🎯 {s.label}</option>
                 ))}
               </select>
               <button
@@ -1013,7 +1036,8 @@ export default function TeamBalancerPage() {
                   editSkills[m.id].isCaptain !== (skills[m.id]?.isCaptain ?? false) ||
                   editSkills[m.id].availability !== (skills[m.id]?.availability ?? "fit") ||
                   editSkills[m.id].ballControl !== (skills[m.id]?.ballControl ?? "ok") ||
-                  editSkills[m.id].runningSpeed !== (skills[m.id]?.runningSpeed ?? "medium"));
+                  editSkills[m.id].runningSpeed !== (skills[m.id]?.runningSpeed ?? "medium") ||
+                  editSkills[m.id].passAccuracy !== (skills[m.id]?.passAccuracy ?? "ok"));
               return (
                 <div
                   key={m.id}
@@ -1024,6 +1048,7 @@ export default function TeamBalancerPage() {
                       <span className="font-semibold text-gray-800 truncate text-sm">{m.name}</span>
                       {ev.isCaptain && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold">© CAPTAIN</span>}
                       {ev.availability === "injured" && <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-800 font-bold">🚑 INJURED</span>}
+                      {ev.availability === "halffit" && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold">🕐 1ST HALF</span>}
                       {ev.availability === "tired" && <span className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-800 font-bold">😓 TIRED</span>}
                       {getSkillBadge(ev.skillTier)}
                     </div>
@@ -1063,6 +1088,7 @@ export default function TeamBalancerPage() {
                       title="Fitness / availability"
                     >
                       <option value="fit">Fit</option>
+                      <option value="halffit">Fit 1st half only (-0.5)</option>
                       <option value="tired">Tired (-1)</option>
                       <option value="injured">🚑 Injured (skip)</option>
                     </select>
@@ -1084,6 +1110,16 @@ export default function TeamBalancerPage() {
                     >
                       {SPEED_OPTIONS.map((s) => (
                         <option key={s.value} value={s.value}>🏃 {s.label}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={ev.passAccuracy}
+                      onChange={(e) => updateEdit(m.id, "passAccuracy", e.target.value)}
+                      className="border rounded-lg px-2 py-1.5 text-xs bg-white"
+                      title="Pass accuracy"
+                    >
+                      {PASS_OPTIONS.map((s) => (
+                        <option key={s.value} value={s.value}>🎯 {s.label}</option>
                       ))}
                     </select>
                     <label className="inline-flex items-center gap-1 px-2 py-1.5 text-xs bg-white border rounded-lg cursor-pointer" title="Captain — algorithm puts one on each team">

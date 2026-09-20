@@ -186,9 +186,10 @@ model PlayerSkill {
   ageGroup     String   @default("senior")
   position     String   @default("any")
   isCaptain    Boolean  @default(false) // captain flag — algorithm puts one on each team
-  availability String   @default("fit")  // "fit" | "tired" (-modifier) | "injured" (excluded)
+  availability String   @default("fit")  // "fit" 0 | "halffit" -0.5 (fades after half time) | "tired" -1 | "injured" (excluded)
   ballControl  String   @default("ok")   // "no" -0.75 | "less" -0.5 | "ok" 0 | "good" +0.5 | "verygood" +1
   runningSpeed String   @default("medium") // "slow" -0.5 | "medium" 0 | "fast" +0.5
+  passAccuracy String   @default("ok")   // "poor" -0.75 | "weak" -0.5 | "ok" 0 | "good" +0.5 | "excellent" +1
   createdAt    DateTime @default(now())
   updatedAt    DateTime @default(now())
 
