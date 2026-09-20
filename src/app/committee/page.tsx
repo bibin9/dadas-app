@@ -7,7 +7,6 @@ interface Skill {
   memberId: string; skillTier: string; ageGroup: string; position: string;
   isCaptain: boolean; availability: string; ballControl: string; runningSpeed: string;
 }
-interface AvoidPair { id: string; memberAName: string; memberBName: string; type: string }
 interface Sheet { id: string; name: string; date: string; teamAName: string; teamBName: string; teamA: string[]; teamB: string[] }
 
 const TIER_COLOR: Record<string, string> = {
@@ -62,7 +61,6 @@ export default function CommitteePage() {
   const [loading, setLoading] = useState(true);
   const [members, setMembers] = useState<Member[]>([]);
   const [skills, setSkills] = useState<Record<string, Skill>>({});
-  const [pairs, setPairs] = useState<AvoidPair[]>([]);
   const [sheets, setSheets] = useState<Sheet[]>([]);
   const [sortBy, setSortBy] = useState<"name" | "rating" | "position">("name");
   const [showGuests, setShowGuests] = useState(false);
@@ -78,14 +76,13 @@ export default function CommitteePage() {
       const map: Record<string, Skill> = {};
       (d.skills as Skill[]).forEach((s) => { map[s.memberId] = s; });
       setSkills(map);
-      setPairs(d.avoidPairs || []);
       setSheets(d.sheets || []);
       setAuthed(true);
     }
     setLoading(false);
   }
 
-  async function login(e: React.FormEvent) {
+  async function login(e: React.FormEvent | React.KeyboardEvent) {
     e.preventDefault();
     setBusy(true); setError("");
     const res = await fetch("/api/committee/login", {
@@ -110,6 +107,7 @@ export default function CommitteePage() {
           <input
             type="password" value={password} autoFocus
             onChange={(e) => setPassword(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && password && !busy) login(e); }}
             placeholder="Committee password"
             className="w-full border rounded-lg px-3 py-2 text-sm mb-3"
           />
@@ -128,9 +126,11 @@ export default function CommitteePage() {
   const sorted = [...visible].sort((a, b) => {
     if (sortBy === "rating") return ratingOf(skills[b.id]) - ratingOf(skills[a.id]);
     if (sortBy === "position") {
-      const ca = POS_CAT[skills[a.id]?.position ?? "any"] ?? "—";
-      const cb = POS_CAT[skills[b.id]?.position ?? "any"] ?? "—";
-      return ca === cb ? a.name.localeCompare(b.name) : ca.localeCompare(cb);
+      // Pitch order, with unassigned last — what a committee member expects.
+      const ORDER: Record<string, number> = { GK: 0, DEF: 1, MID: 2, FWD: 3, "—": 4 };
+      const ca = ORDER[POS_CAT[skills[a.id]?.position ?? "any"] ?? "—"] ?? 4;
+      const cb = ORDER[POS_CAT[skills[b.id]?.position ?? "any"] ?? "—"] ?? 4;
+      return ca === cb ? a.name.localeCompare(b.name) : ca - cb;
     }
     return a.name.localeCompare(b.name);
   });
@@ -198,7 +198,7 @@ export default function CommitteePage() {
           <table className="w-full text-sm min-w-[720px]">
             <thead className="bg-gray-50 text-gray-600 text-xs">
               <tr>
-                <th className="text-left px-3 py-2">Player</th>
+                <th className="text-left px-3 py-2 sticky left-0 bg-gray-50 z-10">Player</th>
                 <th className="text-left px-3 py-2">Tier</th>
                 <th className="text-left px-3 py-2">Pos</th>
                 <th className="text-left px-3 py-2">Age</th>
@@ -214,7 +214,7 @@ export default function CommitteePage() {
                 const tier = s?.skillTier ?? "silver";
                 return (
                   <tr key={m.id} className={`border-t border-gray-100 ${!s ? "bg-orange-50/50" : ""}`}>
-                    <td className="px-3 py-2 font-medium text-gray-800 whitespace-nowrap">
+                    <td className={`px-3 py-2 font-medium text-gray-800 whitespace-nowrap sticky left-0 z-10 ${!s ? "bg-orange-50" : "bg-white"}`}>
                       {s?.isCaptain && <span className="text-[10px] bg-amber-200 text-amber-900 font-bold px-1 rounded mr-1">©</span>}
                       {m.name}
                       {m.isGuest && <span className="text-[10px] bg-gray-200 text-gray-700 px-1 rounded ml-1">GUEST</span>}
@@ -241,24 +241,6 @@ export default function CommitteePage() {
               })}
             </tbody>
           </table>
-        </div>
-
-        {/* Avoid pairs */}
-        <h2 className="text-lg font-bold text-gray-800 mb-2">🚫 Avoid Pairs</h2>
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 mb-6">
-          {pairs.length === 0 ? (
-            <p className="text-sm text-gray-400 italic">No avoid pairs configured.</p>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {pairs.map((p) => (
-                <span key={p.id} className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border ${
-                  p.type === "same" ? "bg-red-50 text-red-800 border-red-200" : "bg-purple-50 text-purple-800 border-purple-200"
-                }`}>
-                  {p.type === "same" ? "🚫 Apart:" : "🤝 Together:"} <strong>{p.memberAName}</strong> &amp; <strong>{p.memberBName}</strong>
-                </span>
-              ))}
-            </div>
-          )}
         </div>
 
         {/* Recent shared teams */}

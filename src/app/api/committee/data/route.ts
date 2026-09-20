@@ -6,19 +6,18 @@ import { hasCommitteeAccess } from "@/lib/auth";
 // Unlike the public /teams endpoints (which strip every rating), this returns
 // the actual ratings so the committee can sanity-check why teams balance the
 // way they do. It is gated behind the committee password or an admin login,
-// and exposes no financial data whatsoever.
+// and exposes no financial data and no avoid pairs (those stay admin-only).
 export async function GET() {
   if (!(await hasCommitteeAccess())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const [members, skills, avoidPairs, sheets] = await Promise.all([
+  const [members, skills, sheets] = await Promise.all([
     prisma.member.findMany({
       select: { id: true, name: true, active: true, isGuest: true },
       orderBy: { name: "asc" },
     }),
     prisma.playerSkill.findMany(),
-    prisma.avoidPair.findMany({ orderBy: { createdAt: "desc" } }),
     prisma.teamSheet.findMany({
       orderBy: { date: "desc" },
       take: 5,
@@ -30,11 +29,6 @@ export async function GET() {
   return NextResponse.json({
     members,
     skills,
-    avoidPairs: avoidPairs.map((p) => ({
-      ...p,
-      memberAName: nameById.get(p.memberAId) ?? "(removed)",
-      memberBName: nameById.get(p.memberBId) ?? "(removed)",
-    })),
     sheets: sheets.map((s) => {
       const toNames = (json: string) => {
         try { return (JSON.parse(json) as string[]).map((id) => nameById.get(id) ?? "?"); }

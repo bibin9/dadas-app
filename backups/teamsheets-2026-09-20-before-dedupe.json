@@ -1,0 +1,116 @@
+{
+  "takenAt": "2026-09-20T07:16:15.399Z",
+  "count": 10,
+  "rows": [
+    {
+      "id": "cmu8hlnqu000104l8j9ozk12t",
+      "name": "Match 19/09/2026",
+      "date": "2026-09-19T14:32:53.622+00:00",
+      "teamAName": "Yellow",
+      "teamBName": "Black",
+      "teamAIds": "[\"cmnu1ui19000xj8luiwqlgzmg\",\"cmnu29kfz0015j8lutmbeykvs\",\"cmnu0xuwv0000j8lurjzyuhox\",\"cmnu1mwn7000ij8lumxya3nux\",\"cmnu1rkgb000rj8luuk6qrj3n\",\"cmnu1uv1l000yj8lukg6e80fm\",\"cmnu1lvix000gj8luj6cqgz3k\",\"cmnu1x6bx0014j8luged0grba\",\"cmnu1p222000mj8lu2o4e3hvb\",\"cmnu1onkn000lj8lukmdinieu\",\"cmnu1o6yu000kj8lum5fqj3dh\"]",
+      "teamBIds": "[\"cmnu1v624000zj8lukqx31sre\",\"cmnu1mawy000hj8lu9lljq726\",\"cmnu0z98b0002j8lusuqw31tl\",\"cmnu1ns4r000jj8lutsm817bz\",\"cmnu1phyj000nj8lunk52zmng\",\"cmnulo3by000004l2bd5qy3b3\",\"cmnu1vki70010j8lus16i5f9y\",\"cms7hnaki000204jvyts6l7vk\",\"cmnu1qa4c000oj8lu9gfqb115\",\"cmnu1vw4m0011j8luusi62dcy\",\"cmnu1r8jk000qj8luon0nd2aq\"]",
+      "notes": "",
+      "createdAt": "2026-09-19T14:32:53.622+00:00"
+    },
+    {
+      "id": "cmu8hk36e000004l8mvek88mq",
+      "name": "Match 19/09/2026",
+      "date": "2026-09-19T14:31:40.303+00:00",
+      "teamAName": "Yellow",
+      "teamBName": "Black",
+      "teamAIds": "[\"cmnu1ui19000xj8luiwqlgzmg\",\"cmnu29kfz0015j8lutmbeykvs\",\"cmnu0xuwv0000j8lurjzyuhox\",\"cmnu1mwn7000ij8lumxya3nux\",\"cmnu1rkgb000rj8luuk6qrj3n\",\"cmnu1uv1l000yj8lukg6e80fm\",\"cmnu1lvix000gj8luj6cqgz3k\",\"cmnu1x6bx0014j8luged0grba\",\"cmnu1p222000mj8lu2o4e3hvb\",\"cmnu1onkn000lj8lukmdinieu\",\"cmnu1o6yu000kj8lum5fqj3dh\"]",
+      "teamBIds": "[\"cmnu1v624000zj8lukqx31sre\",\"cmnu1mawy000hj8lu9lljq726\",\"cmnu0z98b0002j8lusuqw31tl\",\"cmnu1ns4r000jj8lutsm817bz\",\"cmnu1phyj000nj8lunk52zmng\",\"cmnulo3by000004l2bd5qy3b3\",\"cmnu1vki70010j8lus16i5f9y\",\"cms7hnaki000204jvyts6l7vk\",\"cmnu1qa4c000oj8lu9gfqb115\",\"cmnu1vw4m0011j8luusi62dcy\",\"cmnu1r8jk000qj8luon0nd2aq\"]",
+      "notes": "",
+      "createdAt": "2026-09-19T14:31:40.310+00:00"
+    },
+    {
+      "id": "cmu8h9r7u000504kr3biyy9um",
+      "name": "Match 19/09/2026",
+      "date": "2026-09-19T14:23:38.249+00:00",
+      "teamAName": "Green",
+      "teamBName": "White",
+      "teamAIds": "[\"cmnu1ns4r000jj8lutsm817bz\",\"cmnu29kfz0015j8lutmbeykvs\",\"cmnu0z98b0002j8lusuqw31tl\",\"cmnu1uv1l000yj8lukg6e80fm\",\"cmnu1lvix000gj8luj6cqgz3k\",\"cmnu1rkgb000rj8luuk6qrj3n\",\"cmnu1vki70010j8lus16i5f9y\",\"cmnu1onkn000lj8lukmdinieu\",\"cmnu1v624000zj8lukqx31sre\",\"cmnu1vw4m0011j8luusi62dcy\",\"cmnu1r8jk000qj8luon0nd2aq\"]",
+      "teamBIds": "[\"cmnu1p222000mj8lu2o4e3hvb\",\"cmnu1mawy000hj8lu9lljq726\",\"cmnu0xuwv0000j8lurjzyuhox\",\"cmnu1mwn7000ij8lumxya3nux\",\"cmnulo3by000004l2bd5qy3b3\",\"cmnu1phyj000nj8lunk52zmng\",\"cmnu1x6bx0014j8luged0grba\",\"cmnu1ui19000xj8luiwqlgzmg\",\"cms7hnaki000204jvyts6l7vk\",\"cmnu1qa4c000oj8lu9gfqb115\",\"cmnu1o6yu000kj8lum5fqj3dh\"]",
+      "notes": "",
+      "createdAt": "2026-09-19T14:23:38.250+00:00"
+    },
+    {
+      "id": "cmu8h8fbp000404krj2lbz93l",
+      "name": "Match 19/09/2026",
+      "date": "2026-09-19T14:22:36.181+00:00",
+      "teamAName": "Green",
+      "teamBName": "Yellow",
+      "teamAIds": "[\"cmnu1ns4r000jj8lutsm817bz\",\"cmnu29kfz0015j8lutmbeykvs\",\"cmnu0z98b0002j8lusuqw31tl\",\"cmnu1uv1l000yj8lukg6e80fm\",\"cmnu1lvix000gj8luj6cqgz3k\",\"cmnu1rkgb000rj8luuk6qrj3n\",\"cmnu1vki70010j8lus16i5f9y\",\"cmnu1onkn000lj8lukmdinieu\",\"cmnu1v624000zj8lukqx31sre\",\"cmnu1vw4m0011j8luusi62dcy\",\"cmnu1r8jk000qj8luon0nd2aq\"]",
+      "teamBIds": "[\"cmnu1p222000mj8lu2o4e3hvb\",\"cmnu1mawy000hj8lu9lljq726\",\"cmnu0xuwv0000j8lurjzyuhox\",\"cmnu1mwn7000ij8lumxya3nux\",\"cmnulo3by000004l2bd5qy3b3\",\"cmnu1phyj000nj8lunk52zmng\",\"cmnu1x6bx0014j8luged0grba\",\"cmnu1ui19000xj8luiwqlgzmg\",\"cms7hnaki000204jvyts6l7vk\",\"cmnu1qa4c000oj8lu9gfqb115\",\"cmnu1o6yu000kj8lum5fqj3dh\"]",
+      "notes": "",
+      "createdAt": "2026-09-19T14:22:36.181+00:00"
+    },
+    {
+      "id": "cmu8h58bg000304krvgry7rux",
+      "name": "Match 19/09/2026",
+      "date": "2026-09-19T14:20:07.132+00:00",
+      "teamAName": "Green",
+      "teamBName": "Yellow",
+      "teamAIds": "[\"cmnu1ns4r000jj8lutsm817bz\",\"cmnu29kfz0015j8lutmbeykvs\",\"cmnu0z98b0002j8lusuqw31tl\",\"cmnu1uv1l000yj8lukg6e80fm\",\"cmnu1lvix000gj8luj6cqgz3k\",\"cmnu1rkgb000rj8luuk6qrj3n\",\"cmnu1vki70010j8lus16i5f9y\",\"cmnu1onkn000lj8lukmdinieu\",\"cmnu1o6yu000kj8lum5fqj3dh\",\"cmnu1vw4m0011j8luusi62dcy\",\"cmnu1r8jk000qj8luon0nd2aq\"]",
+      "teamBIds": "[\"cmnu1p222000mj8lu2o4e3hvb\",\"cmnu1mawy000hj8lu9lljq726\",\"cmnu0xuwv0000j8lurjzyuhox\",\"cmnu1mwn7000ij8lumxya3nux\",\"cmnulo3by000004l2bd5qy3b3\",\"cmnu1phyj000nj8lunk52zmng\",\"cmnu1x6bx0014j8luged0grba\",\"cms7hnaki000204jvyts6l7vk\",\"cmnu1ui19000xj8luiwqlgzmg\",\"cmnu1qa4c000oj8lu9gfqb115\",\"cmnu1v624000zj8lukqx31sre\"]",
+      "notes": "",
+      "createdAt": "2026-09-19T14:20:07.132+00:00"
+    },
+    {
+      "id": "cmu8h4u1n000204krfutyqya8",
+      "name": "Match 19/09/2026",
+      "date": "2026-09-19T14:19:48.634+00:00",
+      "teamAName": "Green",
+      "teamBName": "Yellow",
+      "teamAIds": "[\"cmnu1ns4r000jj8lutsm817bz\",\"cmnu29kfz0015j8lutmbeykvs\",\"cmnu0z98b0002j8lusuqw31tl\",\"cmnu1uv1l000yj8lukg6e80fm\",\"cmnu1lvix000gj8luj6cqgz3k\",\"cmnu1rkgb000rj8luuk6qrj3n\",\"cmnu1vki70010j8lus16i5f9y\",\"cmnu1onkn000lj8lukmdinieu\",\"cmnu1o6yu000kj8lum5fqj3dh\",\"cmnu1vw4m0011j8luusi62dcy\",\"cmnu1r8jk000qj8luon0nd2aq\"]",
+      "teamBIds": "[\"cmnu1p222000mj8lu2o4e3hvb\",\"cmnu1mawy000hj8lu9lljq726\",\"cmnu0xuwv0000j8lurjzyuhox\",\"cmnu1mwn7000ij8lumxya3nux\",\"cmnulo3by000004l2bd5qy3b3\",\"cmnu1phyj000nj8lunk52zmng\",\"cmnu1x6bx0014j8luged0grba\",\"cms7hnaki000204jvyts6l7vk\",\"cmnu1ui19000xj8luiwqlgzmg\",\"cmnu1qa4c000oj8lu9gfqb115\",\"cmnu1v624000zj8lukqx31sre\"]",
+      "notes": "",
+      "createdAt": "2026-09-19T14:19:48.635+00:00"
+    },
+    {
+      "id": "cmu8h4jfz000104krvxxd6cys",
+      "name": "Match 19/09/2026",
+      "date": "2026-09-19T14:19:34.895+00:00",
+      "teamAName": "Green",
+      "teamBName": "Yellow",
+      "teamAIds": "[\"cmnu1ns4r000jj8lutsm817bz\",\"cmnu29kfz0015j8lutmbeykvs\",\"cmnu0z98b0002j8lusuqw31tl\",\"cmnu1uv1l000yj8lukg6e80fm\",\"cmnu1lvix000gj8luj6cqgz3k\",\"cmnu1rkgb000rj8luuk6qrj3n\",\"cmnu1vki70010j8lus16i5f9y\",\"cmnu1onkn000lj8lukmdinieu\",\"cmnu1o6yu000kj8lum5fqj3dh\",\"cmnu1vw4m0011j8luusi62dcy\",\"cmnu1r8jk000qj8luon0nd2aq\"]",
+      "teamBIds": "[\"cmnu1p222000mj8lu2o4e3hvb\",\"cmnu1mawy000hj8lu9lljq726\",\"cmnu0xuwv0000j8lurjzyuhox\",\"cmnu1mwn7000ij8lumxya3nux\",\"cmnulo3by000004l2bd5qy3b3\",\"cmnu1phyj000nj8lunk52zmng\",\"cmnu1x6bx0014j8luged0grba\",\"cms7hnaki000204jvyts6l7vk\",\"cmnu1ui19000xj8luiwqlgzmg\",\"cmnu1qa4c000oj8lu9gfqb115\",\"cmnu1v624000zj8lukqx31sre\"]",
+      "notes": "",
+      "createdAt": "2026-09-19T14:19:34.895+00:00"
+    },
+    {
+      "id": "cmu8h4e2n000004krxkds3b0l",
+      "name": "Match 19/09/2026",
+      "date": "2026-09-19T14:19:27.927+00:00",
+      "teamAName": "Green",
+      "teamBName": "Yellow",
+      "teamAIds": "[\"cmnu1ns4r000jj8lutsm817bz\",\"cmnu29kfz0015j8lutmbeykvs\",\"cmnu0z98b0002j8lusuqw31tl\",\"cmnu1uv1l000yj8lukg6e80fm\",\"cmnu1lvix000gj8luj6cqgz3k\",\"cmnu1rkgb000rj8luuk6qrj3n\",\"cmnu1vki70010j8lus16i5f9y\",\"cmnu1onkn000lj8lukmdinieu\",\"cmnu1o6yu000kj8lum5fqj3dh\",\"cmnu1vw4m0011j8luusi62dcy\",\"cmnu1r8jk000qj8luon0nd2aq\"]",
+      "teamBIds": "[\"cmnu1p222000mj8lu2o4e3hvb\",\"cmnu1mawy000hj8lu9lljq726\",\"cmnu0xuwv0000j8lurjzyuhox\",\"cmnu1mwn7000ij8lumxya3nux\",\"cmnulo3by000004l2bd5qy3b3\",\"cmnu1phyj000nj8lunk52zmng\",\"cmnu1x6bx0014j8luged0grba\",\"cms7hnaki000204jvyts6l7vk\",\"cmnu1ui19000xj8luiwqlgzmg\",\"cmnu1qa4c000oj8lu9gfqb115\",\"cmnu1v624000zj8lukqx31sre\"]",
+      "notes": "",
+      "createdAt": "2026-09-19T14:19:27.935+00:00"
+    },
+    {
+      "id": "cmu8gbrvn000004jyllqfrgt5",
+      "name": "Match 19/09/2026",
+      "date": "2026-09-19T13:57:12.797+00:00",
+      "teamAName": "Green",
+      "teamBName": "Yellow",
+      "teamAIds": "[\"cmnu1ns4r000jj8lutsm817bz\",\"cmnu29kfz0015j8lutmbeykvs\",\"cmnu0z98b0002j8lusuqw31tl\",\"cmnu1uv1l000yj8lukg6e80fm\",\"cmnu1lvix000gj8luj6cqgz3k\",\"cmnu1rkgb000rj8luuk6qrj3n\",\"cmnu1x6bx0014j8luged0grba\",\"cmnu1onkn000lj8lukmdinieu\",\"cmnu1p222000mj8lu2o4e3hvb\",\"cmnu1vw4m0011j8luusi62dcy\",\"cmnu1r8jk000qj8luon0nd2aq\"]",
+      "teamBIds": "[\"cmnu1o6yu000kj8lum5fqj3dh\",\"cmnu1mawy000hj8lu9lljq726\",\"cmnu0xuwv0000j8lurjzyuhox\",\"cmnu1mwn7000ij8lumxya3nux\",\"cmnulo3by000004l2bd5qy3b3\",\"cmnu1phyj000nj8lunk52zmng\",\"cmnu1vki70010j8lus16i5f9y\",\"cms7hnaki000204jvyts6l7vk\",\"cmnu1ui19000xj8luiwqlgzmg\",\"cmnu1qa4c000oj8lu9gfqb115\",\"cmnu1v624000zj8lukqx31sre\"]",
+      "notes": "",
+      "createdAt": "2026-09-19T13:57:12.803+00:00"
+    },
+    {
+      "id": "cmu5oegqu000004lbekzqrbqi",
+      "name": "Match 17/09/2026",
+      "date": "2026-09-17T15:19:56.735+00:00",
+      "teamAName": "Black",
+      "teamBName": "Blue",
+      "teamAIds": "[\"cmnu29kfz0015j8lutmbeykvs\",\"cmnu1k20b000dj8luy9mnlxsb\",\"cmnu0z98b0002j8lusuqw31tl\",\"cmnulo3by000004l2bd5qy3b3\",\"cmnu1uv1l000yj8lukg6e80fm\",\"cmnu1qa4c000oj8lu9gfqb115\",\"cmnu1vw4m0011j8luusi62dcy\",\"cmnu1qrhc000pj8luwng1qp6v\",\"cmnu1v624000zj8lukqx31sre\"]",
+      "teamBIds": "[\"cmnu1p222000mj8lu2o4e3hvb\",\"cmnu1mawy000hj8lu9lljq726\",\"cmnu0xuwv0000j8lurjzyuhox\",\"cmnu1ns4r000jj8lutsm817bz\",\"cmnu1phyj000nj8lunk52zmng\",\"cmnu1x6bx0014j8luged0grba\",\"cmnu1ui19000xj8luiwqlgzmg\",\"cmnu1onkn000lj8lukmdinieu\",\"cmnu1o6yu000kj8lum5fqj3dh\"]",
+      "notes": "",
+      "createdAt": "2026-09-17T15:19:56.742+00:00"
+    }
+  ]
+}

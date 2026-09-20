@@ -36,12 +36,37 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Not enough known players to record" }, { status: 400 });
   }
 
+  const name = typeof body.name === "string" ? body.name.slice(0, 80) : "Shared team";
+  const teamAName = typeof body.teamAName === "string" ? body.teamAName.slice(0, 40) : "Team A";
+  const teamBName = typeof body.teamBName === "string" ? body.teamBName.slice(0, 40) : "Team B";
+
+  // De-duplicate: sharing the same line-up twice (double tap, or re-sharing
+  // after only changing jersey colours) must not create a second row. Repeat
+  // avoidance looks at the last 2 sheets, so duplicates would silently halve
+  // the history it has to work with.
+  const sig = (a: string[], b: string[]) =>
+    [[...a].sort().join(","), [...b].sort().join(",")].sort().join("||");
+  const newSig = sig(teamAIds, teamBIds);
+  const latest = await prisma.teamSheet.findFirst({ orderBy: { date: "desc" } });
+  if (latest) {
+    try {
+      const prevSig = sig(JSON.parse(latest.teamAIds), JSON.parse(latest.teamBIds));
+      if (prevSig === newSig) {
+        const updated = await prisma.teamSheet.update({
+          where: { id: latest.id },
+          data: { name, teamAName, teamBName, date: new Date() },
+        });
+        return NextResponse.json({ id: updated.id, saved: true, deduped: true });
+      }
+    } catch { /* malformed previous row — fall through and insert */ }
+  }
+
   const sheet = await prisma.teamSheet.create({
     data: {
-      name: typeof body.name === "string" ? body.name.slice(0, 80) : "Shared team",
+      name,
       date: new Date(),
-      teamAName: typeof body.teamAName === "string" ? body.teamAName.slice(0, 40) : "Team A",
-      teamBName: typeof body.teamBName === "string" ? body.teamBName.slice(0, 40) : "Team B",
+      teamAName,
+      teamBName,
       teamAIds: JSON.stringify(teamAIds),
       teamBIds: JSON.stringify(teamBIds),
       notes: "",
