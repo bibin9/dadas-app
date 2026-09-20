@@ -1,4 +1,5 @@
 import jwt from "jsonwebtoken";
+import { createHash } from "crypto";
 import { cookies } from "next/headers";
 
 const JWT_SECRET = process.env.JWT_SECRET || "dadas-app-change-this-secret-in-production";
@@ -28,14 +29,25 @@ export async function getSession() {
 // but they get no admin access and cannot change anything.
 const COMMITTEE_COOKIE = "committee_token";
 
+// Fingerprint of the CURRENT committee password, embedded in every token.
+// Rotating COMMITTEE_PASSWORD changes this, which instantly invalidates every
+// previously issued cookie — otherwise anyone who logged in with the old
+// password would keep access for the full 30 days after a rotation.
+function passwordVersion(): string {
+  return createHash("sha256")
+    .update(process.env.COMMITTEE_PASSWORD || "")
+    .digest("hex")
+    .slice(0, 16);
+}
+
 export function signCommitteeToken() {
-  return jwt.sign({ role: "committee" }, JWT_SECRET, { expiresIn: "30d" });
+  return jwt.sign({ role: "committee", pv: passwordVersion() }, JWT_SECRET, { expiresIn: "30d" });
 }
 
 export function verifyCommitteeToken(token: string): boolean {
   try {
-    const d = jwt.verify(token, JWT_SECRET) as { role?: string };
-    return d.role === "committee";
+    const d = jwt.verify(token, JWT_SECRET) as { role?: string; pv?: string };
+    return d.role === "committee" && d.pv === passwordVersion();
   } catch {
     return false;
   }

@@ -12,7 +12,7 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const [members, skills, sheets] = await Promise.all([
+  const [members, skills, sheets, comments] = await Promise.all([
     prisma.member.findMany({
       select: { id: true, name: true, active: true, isGuest: true },
       orderBy: { name: "asc" },
@@ -23,12 +23,14 @@ export async function GET() {
       take: 5,
       select: { id: true, name: true, date: true, teamAName: true, teamBName: true, teamAIds: true, teamBIds: true },
     }),
+    prisma.playerComment.findMany({ orderBy: { createdAt: "desc" } }),
   ]);
 
   const nameById = new Map(members.map((m) => [m.id, m.name]));
   return NextResponse.json({
     members,
     skills,
+    comments,
     sheets: sheets.map((s) => {
       const toNames = (json: string) => {
         try { return (JSON.parse(json) as string[]).map((id) => nameById.get(id) ?? "?"); }

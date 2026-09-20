@@ -211,6 +211,20 @@ model AvoidPair {
   @@index([memberBId])
 }
 
+// Selection-committee notes on a player, e.g. "rated too high, struggled at
+// CB last week". Written from the committee screen; the committee cannot
+// change ratings, so this is how they feed observations back to the admin.
+model PlayerComment {
+  id        String   @id @default(cuid())
+  memberId  String
+  author    String   @default("")
+  text      String
+  createdAt DateTime @default(now())
+
+  @@index([memberId])
+  @@index([createdAt])
+}
+
 model TeamSheet {
   id        String   @id @default(cuid())
   name      String

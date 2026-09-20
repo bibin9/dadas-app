@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Fragment } from "react";
 
 interface Member { id: string; name: string; active: boolean; isGuest: boolean }
 interface Skill {
   memberId: string; skillTier: string; ageGroup: string; position: string;
   isCaptain: boolean; availability: string; ballControl: string; runningSpeed: string;
 }
+interface Comment { id: string; memberId: string; author: string; text: string; createdAt: string }
 interface Sheet { id: string; name: string; date: string; teamAName: string; teamBName: string; teamA: string[]; teamB: string[] }
 
 const TIER_COLOR: Record<string, string> = {
@@ -62,8 +63,14 @@ export default function CommitteePage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [skills, setSkills] = useState<Record<string, Skill>>({});
   const [sheets, setSheets] = useState<Sheet[]>([]);
+  const [comments, setComments] = useState<Comment[]>([]);
   const [sortBy, setSortBy] = useState<"name" | "rating" | "position">("name");
   const [showGuests, setShowGuests] = useState(false);
+  const [openFor, setOpenFor] = useState<string | null>(null); // player id with comments open
+  const [draft, setDraft] = useState("");
+  const [author, setAuthor] = useState("");
+  const [posting, setPosting] = useState(false);
+  const [showScale, setShowScale] = useState(false);
 
   useEffect(() => { load(); }, []);
 
@@ -77,9 +84,36 @@ export default function CommitteePage() {
       (d.skills as Skill[]).forEach((s) => { map[s.memberId] = s; });
       setSkills(map);
       setSheets(d.sheets || []);
+      setComments(d.comments || []);
       setAuthed(true);
     }
     setLoading(false);
+  }
+
+  useEffect(() => {
+    const saved = localStorage.getItem("committee_author");
+    if (saved) setAuthor(saved);
+  }, []);
+
+  async function addComment(memberId: string) {
+    if (!draft.trim()) return;
+    setPosting(true);
+    const res = await fetch("/api/committee/comments", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ memberId, text: draft.trim(), author: author.trim() }),
+    });
+    if (res.ok) {
+      const c = await res.json();
+      setComments((prev) => [c, ...prev]);
+      setDraft("");
+      if (author.trim()) localStorage.setItem("committee_author", author.trim());
+    }
+    setPosting(false);
+  }
+
+  async function removeComment(id: string) {
+    await fetch(`/api/committee/comments?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+    setComments((prev) => prev.filter((c) => c.id !== id));
   }
 
   async function login(e: React.FormEvent | React.KeyboardEvent) {
@@ -143,8 +177,93 @@ export default function CommitteePage() {
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-6">
       <div className="max-w-5xl mx-auto">
-        <h1 className="text-2xl font-bold text-gray-800">⚽ Selection Committee — Player Pool</h1>
-        <p className="text-sm text-gray-500 mb-5">Read-only review of ratings, positions and avoid pairs.</p>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-800">⚽ Selection Committee — Player Pool</h1>
+            <p className="text-sm text-gray-500 mb-2">
+              Review ratings and positions. You can add notes on any player; ratings themselves are changed by the admin.
+            </p>
+          </div>
+          <button
+            onClick={async () => { await fetch("/api/committee/logout", { method: "POST" }); location.reload(); }}
+            className="text-xs text-gray-500 hover:text-gray-800 border border-gray-200 rounded-lg px-3 py-1.5 whitespace-nowrap"
+          >
+            Sign out
+          </button>
+        </div>
+
+        {/* How ratings work — every option and what it is worth */}
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm mb-5">
+          <button onClick={() => setShowScale(!showScale)}
+            className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-gray-800">
+            <span>📊 How ratings are calculated — all available options</span>
+            <span className="text-gray-400">{showScale ? "▲" : "▼"}</span>
+          </button>
+          {showScale && (
+            <div className="px-4 pb-4 text-xs text-gray-700 space-y-3">
+              <p className="text-gray-500">
+                A player&apos;s rating is the skill tier plus every modifier below. Teams are then built so the two
+                sides are within <strong>1 point</strong> of each other.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <div className="font-semibold text-gray-800 mb-1">Skill tier (base)</div>
+                  <ul className="space-y-0.5">
+                    {[["Legend", 6], ["Master", 5], ["Gold", 4], ["Silver", 3], ["Bronze", 2], ["Starter", 1]].map(([l, v]) => (
+                      <li key={l as string} className="flex justify-between"><span>{l}</span><span className="font-mono">{v}</span></li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <div className="font-semibold text-gray-800 mb-1">Age group</div>
+                  <ul className="space-y-0.5">
+                    {[["Under 30", "+0.4"], ["30–40", "0"], ["40–50", "−0.2"], ["Above 50", "−0.4"]].map(([l, v]) => (
+                      <li key={l} className="flex justify-between"><span>{l}</span><span className="font-mono">{v}</span></li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <div className="font-semibold text-gray-800 mb-1">Running speed</div>
+                  <ul className="space-y-0.5">
+                    {[["Slow", "−0.5"], ["Medium", "0"], ["Fast", "+0.5"]].map(([l, v]) => (
+                      <li key={l} className="flex justify-between"><span>{l}</span><span className="font-mono">{v}</span></li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <div className="font-semibold text-gray-800 mb-1">Ball control</div>
+                  <ul className="space-y-0.5">
+                    {[["No", "−0.75"], ["Less", "−0.5"], ["Ok", "0"], ["Good", "+0.5"], ["Very Good", "+1"]].map(([l, v]) => (
+                      <li key={l} className="flex justify-between"><span>{l}</span><span className="font-mono">{v}</span></li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <div className="font-semibold text-gray-800 mb-1">Fitness</div>
+                  <ul className="space-y-0.5">
+                    {[["Fit", "0"], ["Tired", "−1"], ["Injured", "excluded from teams"]].map(([l, v]) => (
+                      <li key={l} className="flex justify-between gap-3"><span>{l}</span><span className="font-mono text-right">{v}</span></li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <div className="font-semibold text-gray-800 mb-1">Position bonus</div>
+                  <ul className="space-y-0.5">
+                    {[["GK", "+0.5"], ["CDM", "+0.4"], ["CB", "+0.3"], ["CM / CAM", "+0.3"], ["ST / CF / SS", "+0.3"],
+                      ["LB / RB / LWB / RWB", "+0.2"], ["LM / RM", "+0.2"], ["Any (utility)", "0"]].map(([l, v]) => (
+                      <li key={l} className="flex justify-between gap-3"><span>{l}</span><span className="font-mono">{v}</span></li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+              <p className="text-gray-500 border-t border-gray-100 pt-2">
+                <strong>Special rule:</strong> a Silver player who is both over 50 and tired is treated as Bronze.
+                Recent form also nudges a rating slightly (−0.3 if they haven&apos;t played in the last 5 matches, up to +0.2 if they play every week),
+                so the figure in the table can differ a little from the pure sum above.
+              </p>
+            </div>
+          )}
+        </div>
 
         {/* Health checks — what usually causes odd-looking teams */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-5">
@@ -206,14 +325,17 @@ export default function CommitteePage() {
                 <th className="text-left px-3 py-2">Ball control</th>
                 <th className="text-left px-3 py-2">Fitness</th>
                 <th className="text-right px-3 py-2">Rating</th>
+                <th className="text-center px-3 py-2">Notes</th>
               </tr>
             </thead>
             <tbody>
               {sorted.map((m) => {
                 const s = skills[m.id];
                 const tier = s?.skillTier ?? "silver";
+                const mine = comments.filter((c) => c.memberId === m.id);
                 return (
-                  <tr key={m.id} className={`border-t border-gray-100 ${!s ? "bg-orange-50/50" : ""}`}>
+                  <Fragment key={m.id}>
+                  <tr className={`border-t border-gray-100 ${!s ? "bg-orange-50/50" : ""}`}>
                     <td className={`px-3 py-2 font-medium text-gray-800 whitespace-nowrap sticky left-0 z-10 ${!s ? "bg-orange-50" : "bg-white"}`}>
                       {s?.isCaptain && <span className="text-[10px] bg-amber-200 text-amber-900 font-bold px-1 rounded mr-1">©</span>}
                       {m.name}
@@ -236,7 +358,53 @@ export default function CommitteePage() {
                         : <span className="text-green-700">Fit</span>}
                     </td>
                     <td className="px-3 py-2 text-right font-bold text-gray-800">{ratingOf(s).toFixed(1)}</td>
+                    <td className="px-3 py-2 text-center">
+                      <button
+                        onClick={() => { setOpenFor(openFor === m.id ? null : m.id); setDraft(""); }}
+                        className={`px-2 py-1 rounded-lg text-xs font-semibold ${
+                          mine.length ? "bg-blue-100 text-blue-800" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                        }`}
+                      >
+                        💬 {mine.length || "+"}
+                      </button>
+                    </td>
                   </tr>
+                  {openFor === m.id && (
+                    <tr className="bg-blue-50/40 border-t border-blue-100">
+                      <td colSpan={9} className="px-4 py-3">
+                        <div className="text-xs font-semibold text-gray-700 mb-2">Notes on {m.name}</div>
+                        {mine.length > 0 && (
+                          <div className="space-y-1.5 mb-3">
+                            {mine.map((c) => (
+                              <div key={c.id} className="flex items-start gap-2 bg-white rounded-lg px-3 py-2 border border-gray-100">
+                                <div className="flex-1">
+                                  <div className="text-sm text-gray-800 whitespace-pre-wrap break-words">{c.text}</div>
+                                  <div className="text-[11px] text-gray-400 mt-0.5">
+                                    {c.author || "Committee"} · {new Date(c.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                                  </div>
+                                </div>
+                                <button onClick={() => removeComment(c.id)} title="Delete note"
+                                  className="text-gray-300 hover:text-red-600 font-bold text-sm">×</button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <input value={author} onChange={(e) => setAuthor(e.target.value)}
+                            placeholder="Your name" className="border rounded-lg px-3 py-2 text-sm sm:w-40" />
+                          <input value={draft} onChange={(e) => setDraft(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter" && draft.trim()) addComment(m.id); }}
+                            placeholder={`e.g. "rated too high — struggled at CB last week"`}
+                            className="border rounded-lg px-3 py-2 text-sm flex-1" />
+                          <button onClick={() => addComment(m.id)} disabled={!draft.trim() || posting}
+                            className="bg-[#1a2744] text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-[#243556] disabled:opacity-40">
+                            {posting ? "Saving…" : "Add note"}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 );
               })}
             </tbody>
