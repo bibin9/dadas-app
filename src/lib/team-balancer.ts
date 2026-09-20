@@ -283,6 +283,10 @@ export async function buildTeams(
       const position = g.position || "any";
       const ballControl = g.ballControl || "ok";
       const availability = g.availability || "fit";
+      // Same rule as members: an injured player does not get picked. Without
+      // this the guest was not only placed but scored as fully fit, because
+      // the "injured" modifier is 0 (it means excluded, not penalised).
+      if (availability === "injured") continue;
       const runningSpeed = g.runningSpeed || "medium";
       const passAccuracy = g.passAccuracy || "ok";
       players.push({
