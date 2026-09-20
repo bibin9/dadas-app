@@ -16,6 +16,8 @@ export async function middleware(request: NextRequest) {
     pathname === "/api/team-balancer/public-data" || // read-only, rating-stripped data for /teams
     pathname === "/api/team-balancer/generate-public" || // rating-stripped team build for /teams
     pathname === "/api/team-balancer/save-sheet" || // records shared teams (validated, TeamSheet only)
+    pathname === "/committee" || // committee screen — gated by its own password
+    pathname.startsWith("/api/committee") || // committee auth + read-only data
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/api/backup") || // protected by its own BACKUP_TOKEN/CRON_SECRET
     pathname === "/manifest.json" ||

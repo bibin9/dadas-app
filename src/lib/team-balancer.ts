@@ -294,6 +294,11 @@ export async function buildTeams(
     attrImb: number;
     posImb: number;
     iterations: number;
+    // Captain ids AS OF THIS ATTEMPT. Attempts share PlayerEntry objects and
+    // each one re-picks captains, so a later attempt would otherwise overwrite
+    // the flags of the candidate we end up choosing — which showed up as two
+    // captains on one team and none on the other. Re-applied after selection.
+    captainIds: string[];
   }
 
   // One full build: shuffle → distribute → optimise. Called several times so we
@@ -524,7 +529,10 @@ export async function buildTeams(
       if (curG <= targetGap && curV === 0) break;
       for (const a of teamA) {
         for (const b of teamB) {
-          if (a.isCaptain || b.isCaptain) continue;
+          // Only the two captains actually pinned one-per-team are locked.
+          // Any other flagged captain stays swappable — otherwise a pool where
+          // most players are flagged would freeze the optimiser completely.
+          if (assignedCaptainIds.has(a.id) || assignedCaptainIds.has(b.id)) continue;
           if (sameCategory && categoryOf(a.position) !== categoryOf(b.position)) continue;
           const newA = teamA.map((p) => (p === a ? b : p));
           const newB = teamB.map((p) => (p === b ? a : p));
@@ -604,7 +612,10 @@ export async function buildTeams(
       let tieCount = 0;
       for (const a of teamA) {
         for (const b of teamB) {
-          if (a.isCaptain || b.isCaptain) continue;
+          // Only the two captains actually pinned one-per-team are locked.
+          // Any other flagged captain stays swappable — otherwise a pool where
+          // most players are flagged would freeze the optimiser completely.
+          if (assignedCaptainIds.has(a.id) || assignedCaptainIds.has(b.id)) continue;
           const newA = teamA.map((p) => (p === a ? b : p));
           const newB = teamB.map((p) => (p === b ? a : p));
           if (countViolations(newA, newB) > curV) continue; // never add violations
@@ -663,7 +674,10 @@ export async function buildTeams(
       let bestGap = Infinity;
       for (const a of teamA) {
         for (const b of teamB) {
-          if (a.isCaptain || b.isCaptain) continue;
+          // Only the two captains actually pinned one-per-team are locked.
+          // Any other flagged captain stays swappable — otherwise a pool where
+          // most players are flagged would freeze the optimiser completely.
+          if (assignedCaptainIds.has(a.id) || assignedCaptainIds.has(b.id)) continue;
           const newA = teamA.map((p) => (p === a ? b : p));
           const newB = teamB.map((p) => (p === b ? a : p));
           if (countViolations(newA, newB) > curV) continue;      // no new clashes
@@ -721,6 +735,7 @@ export async function buildTeams(
     attrImb: attributeImbalance(teamA, teamB),
     posImb: categoryImbalance(teamA, teamB) + exactPositionImbalance(teamA, teamB),
     iterations: totalIter,
+    captainIds: players.filter((p) => p.isCaptain).map((p) => p.id),
   };
   } // end runAttempt
 
@@ -757,6 +772,11 @@ export async function buildTeams(
 
   let best = candidates[0];
   for (const c of candidates) if (better(c, best)) best = c;
+
+  // Restore the captain flags that belonged to the CHOSEN line-up (later
+  // attempts mutated the shared player objects).
+  const bestCaptains = new Set(best.captainIds);
+  for (const p of players) p.isCaptain = bestCaptains.has(p.id);
 
   return {
     teamA: best.teamA,
