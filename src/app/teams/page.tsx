@@ -351,7 +351,7 @@ export default function PublicTeamsPage() {
                 onChange={(e) => { setAutoCaptain(e.target.checked); doGenerate(selectedIds, guests, e.target.checked); }}
                 className="rounded text-amber-600"
               />
-              <span><strong>©</strong> Auto-pick 2 captains randomly from flagged captains</span>
+              <span><strong>©</strong> Rotate captains randomly each time (from flagged captains)</span>
               <span className="text-xs text-gray-500">
                 — {flaggedPlaying} flagged captain{flaggedPlaying === 1 ? "" : "s"} playing.
               </span>

@@ -603,7 +603,7 @@ export default function TeamBalancerPage() {
                   onChange={(e) => { setAutoCaptain(e.target.checked); doGenerate(selectedIds, guests, e.target.checked); }}
                   className="rounded text-amber-600"
                 />
-                <span><strong>©</strong> Auto-pick 2 captains randomly from those flagged in Player Pool</span>
+                <span><strong>©</strong> Rotate captains randomly each time (from those flagged in Player Pool)</span>
                 <span className="text-xs text-gray-500">
                   — {flaggedPlaying} flagged captain{flaggedPlaying === 1 ? "" : "s"} playing.
                   {flaggedPlaying < 2 && " Mark 2+ in Player Pool to enable."}

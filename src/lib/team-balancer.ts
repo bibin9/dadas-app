@@ -891,6 +891,18 @@ export async function buildTeams(
   const exhaustive = exhaustiveBest();
   if (exhaustive && better(exhaustive, best)) best = exhaustive;
 
+  // ── Captain normalisation ──
+  // The pool flag means "eligible to captain", NOT "is captain of this match".
+  // Without this, turning the auto-pick toggle OFF passed every pool flag
+  // straight through, so a squad drawn from a pool where most players are
+  // flagged came back with almost everyone wearing the armband. A team sheet
+  // may only ever show ONE captain per side: keep the highest-rated eligible
+  // player on each team and clear the rest.
+  for (const side of [best.teamA, best.teamB]) {
+    const caps = side.filter((p) => p.isCaptain).sort((a, b) => b.score - a.score);
+    for (let i = 1; i < caps.length; i++) caps[i].isCaptain = false;
+  }
+
   return {
     teamA: best.teamA,
     teamB: best.teamB,
